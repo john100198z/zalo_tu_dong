@@ -2,7 +2,7 @@ import { Zalo, ZaloApiError, CloseReason, LoginQRCallbackEventType, type API, ty
 import { settings } from "../db.js";
 import { bus, type ZaloStatus } from "../events.js";
 import { createAutoReplyHandler } from "./autoReply.js";
-import { keepAliveFetch } from "./http.js";
+import { CHROME_UA, keepAliveFetch, preloadChatPage, wsAgent } from "./http.js";
 import { knownSenders } from "./race.js";
 
 const CREDENTIALS_KEY = "zalo_credentials";
@@ -18,6 +18,8 @@ const DUPLICATE_RECONNECT_MS = 60_000;
 const HEALTH_INTERVAL_MS = 15 * 60_000;
 const HEALTH_TIMEOUT_MS = 15_000;
 const HEALTH_MAX_FAILS = 2;
+// Gọi keepAlive định kỳ giống Zalo Web thật để duy trì phiên.
+const KEEPALIVE_INTERVAL_MS = 3 * 60_000;
 
 export type GroupSummary = {
   id: string;
@@ -65,6 +67,7 @@ class ZaloService {
   private reconnectAttempt = 0;
   private healthTimer: NodeJS.Timeout | null = null;
   private healthFails = 0;
+  private keepAliveTimer: NodeJS.Timeout | null = null;
 
   getStatus() {
     return this.status;
@@ -78,7 +81,14 @@ class ZaloService {
   private createClient() {
     // selfListen: nhận cả tin của chính mình để biết thứ tự thật khi kiểm tra vị trí.
     // (autoReply luôn bỏ qua tin của mình nên không có chuyện tự trả lời chính mình.)
-    return new Zalo({ selfListen: true, checkUpdate: false, logging: false, polyfill: keepAliveFetch });
+    // agent: truyền https.Agent có TLS cipher giống Chrome cho kết nối WebSocket.
+    return new Zalo({
+      selfListen: true,
+      checkUpdate: false,
+      logging: false,
+      polyfill: keepAliveFetch,
+      agent: wsAgent as any,
+    });
   }
 
   hasSavedSession() {
@@ -96,6 +106,8 @@ class ZaloService {
     this.teardown();
     this.setStatus({ state: "connecting", attempt: this.reconnectAttempt || undefined });
     try {
+      // Giả lập trình duyệt: tải trang chat.zalo.me trước khi gọi API login.
+      await preloadChatPage(credentials.userAgent);
       // Mỗi lần tạo client mới để bộ đếm retry nội bộ của zca-js được làm mới.
       await this.attach(await withTimeout(this.createClient().login(credentials), 30_000));
     } catch (err) {
@@ -119,7 +131,8 @@ class ZaloService {
 
     let credentials: Credentials | null = null;
     try {
-      const api = await this.createClient().loginQR({}, (event) => {
+      await preloadChatPage(CHROME_UA);
+      const api = await this.createClient().loginQR({ userAgent: CHROME_UA }, (event) => {
         switch (event.type) {
           case LoginQRCallbackEventType.QRCodeGenerated:
             this.abortQR = event.actions.abort;
@@ -197,6 +210,7 @@ class ZaloService {
     listener.on("error", (err) => console.error("[zalo] Listener lỗi:", err));
     listener.start({ retryOnClose: true });
     this.startHealthCheck(api);
+    this.startKeepAlive(api);
   }
 
   private scheduleReconnect(reason: string, delayMs?: number) {
@@ -240,6 +254,19 @@ class ZaloService {
     }, HEALTH_INTERVAL_MS);
   }
 
+  /** Gọi keepAlive định kỳ giống Zalo Web thật, giữ phiên không bị đánh dấu "không hoạt động". */
+  private startKeepAlive(api: API) {
+    if (this.keepAliveTimer) clearInterval(this.keepAliveTimer);
+    this.keepAliveTimer = setInterval(async () => {
+      if (this.api !== api || this.status.state !== "connected") return;
+      try {
+        await api.keepAlive();
+      } catch {
+        // Lỗi keepAlive không nghiêm trọng; healthCheck sẽ xử lý nếu phiên thật sự chết.
+      }
+    }, KEEPALIVE_INTERVAL_MS);
+  }
+
   /** Nút "Kết nối lại" trên web: thử ngay, không chờ. */
   async reconnect() {
     this.reconnectAttempt = 0;
@@ -251,6 +278,8 @@ class ZaloService {
     this.api = null;
     if (this.healthTimer) clearInterval(this.healthTimer);
     this.healthTimer = null;
+    if (this.keepAliveTimer) clearInterval(this.keepAliveTimer);
+    this.keepAliveTimer = null;
     if (api) {
       api.listener.removeAllListeners();
       try {
