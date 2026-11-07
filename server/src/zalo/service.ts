@@ -1,4 +1,4 @@
-import { Zalo, CloseReason, LoginQRCallbackEventType, type API, type Credentials } from "zca-js";
+import { Zalo, ZaloApiError, CloseReason, LoginQRCallbackEventType, type API, type Credentials } from "zca-js";
 import { settings } from "../db.js";
 import { bus, type ZaloStatus } from "../events.js";
 import { createAutoReplyHandler } from "./autoReply.js";
@@ -99,6 +99,13 @@ class ZaloService {
       // Mỗi lần tạo client mới để bộ đếm retry nội bộ của zca-js được làm mới.
       await this.attach(await withTimeout(this.createClient().login(credentials), 30_000));
     } catch (err) {
+      // Zalo trả lời "từ chối" (phiên hết hạn / đổi IP): thử lại vô ích và trông đáng ngờ, nên dừng hẳn.
+      // Còn lỗi mạng/timeout thì tiếp tục thử lại.
+      if (err instanceof ZaloApiError) {
+        console.error("[zalo] Zalo từ chối phiên đã lưu, cần quét QR lại:", err.message);
+        this.setStatus({ state: "disconnected", reason: "Phiên đăng nhập đã hết hạn hoặc bị Zalo từ chối. Hãy quét QR lại" });
+        return;
+      }
       console.error("[zalo] Đăng nhập bằng phiên đã lưu thất bại:", err);
       this.scheduleReconnect("Không đăng nhập được bằng phiên đã lưu");
     }
