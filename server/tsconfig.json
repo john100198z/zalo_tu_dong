@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "outDir": "dist",
+    "rootDir": "src",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "sourceMap": true,
+    "types": ["node"],
+    // index.d.ts gốc của zca-js dùng `export * from "./dist"`, NodeNext không resolve được.
+    "paths": { "zca-js": ["./node_modules/zca-js/dist/index.d.ts"] }
+  },
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts"]
+}
