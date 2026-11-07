@@ -8,6 +8,7 @@ import { zalo } from "./zalo/service.js";
 import { registerAuthRoutes } from "./http/auth.js";
 import { registerApiRoutes } from "./http/routes.js";
 import { registerWs } from "./http/ws.js";
+import { telegram } from "./telegram.js";
 
 const app = Fastify({
   trustProxy: true,
@@ -34,6 +35,7 @@ await app.listen({ port: config.port, host: config.host });
 console.log(`Web panel: http://localhost:${config.port}`);
 
 void zalo.restore();
+telegram.start();
 
 // Lỗi lẻ trong thư viện không được làm sập cả bot.
 process.on("unhandledRejection", (err) => console.error("[process] Promise lỗi không được xử lý:", err));

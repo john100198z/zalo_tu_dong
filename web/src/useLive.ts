@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { api, type ReplyLog, type ZaloStatus } from './api'
+import { api, type ReplyLog, type ReplyMode, type ZaloStatus } from './api'
 
-const LOG_LIMIT = 300
+const LOG_LIMIT = 200
 
 /** Kết nối WebSocket tới server để nhận trạng thái Zalo và nhật ký trả lời theo thời gian thực. */
 export function useLive(onUnauthorized: () => void) {
@@ -9,6 +9,7 @@ export function useLive(onUnauthorized: () => void) {
   const [hasSavedSession, setHasSavedSession] = useState(false)
   const [logs, setLogs] = useState<ReplyLog[]>([])
   const [online, setOnline] = useState(false)
+  const [replyMode, setReplyMode] = useState<ReplyMode | null>(null)
 
   useEffect(() => {
     let ws: WebSocket | null = null
@@ -31,6 +32,8 @@ export function useLive(onUnauthorized: () => void) {
           setLogs((prev) => [data, ...prev].slice(0, LOG_LIMIT))
         } else if (type === 'log_update') {
           setLogs((prev) => prev.map((l) => (l.id === data.id ? data : l)))
+        } else if (type === 'reply_mode') {
+          setReplyMode(data)
         }
       }
       ws.onclose = (e) => {
@@ -49,5 +52,5 @@ export function useLive(onUnauthorized: () => void) {
     }
   }, [onUnauthorized])
 
-  return { status, hasSavedSession, setHasSavedSession, logs, online }
+  return { status, hasSavedSession, setHasSavedSession, logs, online, replyMode, setReplyMode }
 }

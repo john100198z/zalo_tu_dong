@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { zalo } from "../zalo/service.js";
 import { rules, type ListenUser } from "../rules.js";
 import { recentLogs } from "../events.js";
+import { replyMode } from "../replyMode.js";
 import { DEFAULT_REPLY, MAX_LISTEN_USERS } from "../config.js";
 import { requireAuth } from "./auth.js";
 import { telegram, type TelegramSettings } from "../telegram.js";
@@ -194,6 +195,22 @@ export function registerApiRoutes(app: FastifyInstance) {
     });
 
     api.get("/api/logs", async () => recentLogs());
+
+    api.get("/api/reply-mode", async () => replyMode.get());
+
+    api.put<{ Body: { oneShot?: boolean; paused?: boolean } }>(
+      "/api/reply-mode",
+      {
+        schema: {
+          body: {
+            type: "object",
+            properties: { oneShot: { type: "boolean" }, paused: { type: "boolean" } },
+            additionalProperties: false,
+          },
+        },
+      },
+      async (req) => replyMode.update(req.body),
+    );
 
     api.get("/api/telegram", async () => telegram.getPublic());
 

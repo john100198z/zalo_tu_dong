@@ -1,4 +1,6 @@
 import { EventEmitter } from "node:events";
+import type { ReplyMode } from "./replyMode.js";
+import { db } from "./db.js";
 
 export type ZaloStatus =
   | { state: "disconnected"; reason?: string }
@@ -36,6 +38,8 @@ export type ReplyLog = {
   /** Đang chờ kiểm tra vị trí. */
   pending?: boolean;
   race?: RaceResult | null;
+  /** Lần trả lời này đã kích hoạt chế độ "trả lời 1 lần rồi dừng". */
+  pausedAfter?: boolean;
 };
 
 type BusEvents = {
@@ -46,18 +50,34 @@ type BusEvents = {
   log_update: [ReplyLog];
   /** Dòng nhật ký đã hoàn tất (đã có vị trí hoặc gửi lỗi), dùng cho thông báo. */
   log_final: [ReplyLog];
+  reply_mode: [ReplyMode];
 };
 
 export const bus = new EventEmitter<BusEvents>();
 
-const LOG_LIMIT = 300;
-const logs: ReplyLog[] = [];
-let logSeq = 0;
+// Giữ 200 dòng nhật ký gần nhất, lưu DB để khởi động lại không mất.
+const LOG_LIMIT = 200;
+
+db.exec(`CREATE TABLE IF NOT EXISTS reply_logs (id INTEGER PRIMARY KEY, data TEXT NOT NULL)`);
+const saveStmt = db.prepare("INSERT OR REPLACE INTO reply_logs (id, data) VALUES (?, ?)");
+const pruneStmt = db.prepare("DELETE FROM reply_logs WHERE id <= ?");
+
+const logs: ReplyLog[] = db
+  .prepare<[number], { data: string }>("SELECT data FROM (SELECT id, data FROM reply_logs ORDER BY id DESC LIMIT ?) ORDER BY id")
+  .all(LOG_LIMIT)
+  .map((r) => ({ ...(JSON.parse(r.data) as ReplyLog), pending: false }));
+let logSeq = logs.at(-1)?.id ?? 0;
+
+const persist = db.transaction((log: ReplyLog) => {
+  saveStmt.run(log.id, JSON.stringify(log));
+  pruneStmt.run(log.id - LOG_LIMIT);
+});
 
 export function pushLog(entry: Omit<ReplyLog, "id">): ReplyLog {
   const log = { ...entry, id: ++logSeq };
   logs.push(log);
   if (logs.length > LOG_LIMIT) logs.shift();
+  persist(log);
   bus.emit("log", log);
   if (!log.pending) bus.emit("log_final", log);
   return log;
@@ -65,6 +85,7 @@ export function pushLog(entry: Omit<ReplyLog, "id">): ReplyLog {
 
 export function finalizeLog(log: ReplyLog, patch: Partial<ReplyLog>) {
   Object.assign(log, patch, { pending: false });
+  persist(log);
   bus.emit("log_update", log);
   bus.emit("log_final", log);
 }

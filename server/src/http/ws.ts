@@ -3,6 +3,7 @@ import type { WebSocket } from "ws";
 import { bus } from "../events.js";
 import { zalo } from "../zalo/service.js";
 import { isAuthed } from "./auth.js";
+import { replyMode } from "../replyMode.js";
 
 const clients = new Set<WebSocket>();
 
@@ -14,6 +15,7 @@ function broadcast(type: string, data: unknown) {
 bus.on("status", (s) => broadcast("status", s));
 bus.on("log", (l) => broadcast("log", l));
 bus.on("log_update", (l) => broadcast("log_update", l));
+bus.on("reply_mode", (m) => broadcast("reply_mode", m));
 
 export function registerWs(app: FastifyInstance) {
   app.get("/ws", { websocket: true }, (socket, req) => {
@@ -23,6 +25,7 @@ export function registerWs(app: FastifyInstance) {
     }
     clients.add(socket);
     socket.send(JSON.stringify({ type: "status", data: zalo.getStatus() }));
+    socket.send(JSON.stringify({ type: "reply_mode", data: replyMode.get() }));
     socket.on("close", () => clients.delete(socket));
   });
 }

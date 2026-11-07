@@ -1,6 +1,7 @@
 import { ThreadType, type API, type GroupMessage, type Message } from "zca-js";
 import { rules, type HotRule } from "../rules.js";
 import { finalizeLog, pushLog } from "../events.js";
+import { replyMode } from "../replyMode.js";
 import { observe, verifyRace } from "./race.js";
 
 const lastReplyAt = new Map<string, number>();
@@ -18,7 +19,7 @@ function markSeen(msgId: string): boolean {
 
 /** Trả về rule nếu tin này cần được trả lời. Chỉ đọc Map trong RAM. */
 function match(msg: Message): HotRule | undefined {
-  if (msg.type !== ThreadType.Group || msg.isSelf) return;
+  if (msg.type !== ThreadType.Group || msg.isSelf || replyMode.isPaused()) return;
   const rule = rules.hot.get(msg.threadId);
   if (!rule) return;
   const data = msg.data;
@@ -55,18 +56,22 @@ function reply(api: API, msg: GroupMessage, rule: HotRule) {
   const send = () => api.sendMessage(payload, msg.threadId, ThreadType.Group);
 
   // Lỗi mạng thoáng qua: gửi lại 1 lần ngay.
-  send()
-    .catch(send)
-    .then(
-      (res) => {
-        const log = pushLog({ ...base(), ok: true, pending: true });
-        const ourMsgId = res.message?.msgId != null ? String(res.message.msgId) : null;
-        verifyRace(api, msg.threadId, msg, ourMsgId, rule.reply)
-          .then((race) => finalizeLog(log, { race }))
-          .catch(() => finalizeLog(log, { race: null }));
-      },
-      (err: unknown) => pushLog({ ...base(), ok: false, error: err instanceof Error ? err.message : String(err) }),
-    );
+  const sending = send().catch(send);
+  const pausedAfter = replyMode.claim(rule.groupName, data.dName);
+  sending.then(
+    (res) => {
+      const log = pushLog({ ...base(), ok: true, pending: true, pausedAfter });
+      const ourMsgId = res.message?.msgId != null ? String(res.message.msgId) : null;
+      verifyRace(api, msg.threadId, msg, ourMsgId, rule.reply)
+        .then((race) => finalizeLog(log, { race }))
+        .catch(() => finalizeLog(log, { race: null }));
+    },
+    (err: unknown) => {
+      // Gửi lỗi tức là chưa trả lời được ai, nên mở lại lắng nghe.
+      if (pausedAfter) replyMode.update({ paused: false });
+      pushLog({ ...base(), ok: false, error: err instanceof Error ? err.message : String(err) });
+    },
+  );
 
   function base() {
     const now = Date.now();

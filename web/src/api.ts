@@ -53,6 +53,14 @@ export type ReplyLog = {
   totalMs: number
   pending?: boolean
   race?: RaceResult | null
+  pausedAfter?: boolean
+}
+
+export type ReplyMode = {
+  oneShot: boolean
+  paused: boolean
+  pausedAt?: number
+  pausedBy?: { groupName: string; senderName: string }
 }
 
 export type TelegramSettings = {
@@ -110,6 +118,8 @@ export const api = {
   bulk: (action: BulkAction, groupIds: string[], reply?: string) =>
     request<{ groupId: string; rule: GroupRule | null }[]>('POST', '/api/rules/bulk', { action, groupIds, reply }),
   logs: () => request<ReplyLog[]>('GET', '/api/logs'),
+  saveReplyMode: (patch: { oneShot?: boolean; paused?: boolean }) =>
+    request<ReplyMode>('PUT', '/api/reply-mode', patch),
 
   telegram: () => request<TelegramSettings>('GET', '/api/telegram'),
   saveTelegram: (patch: Partial<Omit<TelegramSettings, 'hasToken' | 'tokenPreview'>> & { token?: string }) =>

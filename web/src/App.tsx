@@ -6,7 +6,7 @@ import { ZaloConnect } from './components/ZaloConnect'
 import { GroupsView } from './components/GroupsView'
 import { LogsView } from './components/LogsView'
 import { SettingsView } from './components/SettingsView'
-import { Avatar, Spinner } from './components/ui'
+import { Avatar, Button, Spinner } from './components/ui'
 
 export default function App() {
   const [authed, setAuthed] = useState<boolean | null>(null)
@@ -29,7 +29,19 @@ export default function App() {
 type Tab = 'groups' | 'logs' | 'settings'
 
 function Dashboard({ onLoggedOut }: { onLoggedOut: () => void }) {
-  const { status, hasSavedSession, setHasSavedSession, logs, online } = useLive(onLoggedOut)
+  const { status, hasSavedSession, setHasSavedSession, logs, online, replyMode, setReplyMode } = useLive(onLoggedOut)
+  const [resuming, setResuming] = useState(false)
+
+  async function resume() {
+    setResuming(true)
+    try {
+      setReplyMode(await api.saveReplyMode({ paused: false }))
+    } catch (err) {
+      alert((err as Error).message)
+    } finally {
+      setResuming(false)
+    }
+  }
   const [tab, setTab] = useState<Tab>('groups')
   const [meta, setMeta] = useState({ maxListenUsers: 2, defaultReply: 'em' })
   const [menuOpen, setMenuOpen] = useState(false)
@@ -116,8 +128,25 @@ function Dashboard({ onLoggedOut }: { onLoggedOut: () => void }) {
       </header>
 
       <main className="mx-auto max-w-4xl px-4 py-6">
+        {replyMode?.paused && (
+          <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+            <div className="min-w-0 flex-1">
+              <p className="font-semibold">⏸ Đang DỪNG lắng nghe tất cả nhóm</p>
+              {replyMode.pausedBy && (
+                <p className="mt-0.5 text-amber-800">
+                  Đã trả lời 1 lần: <b>{replyMode.pausedBy.senderName}</b> trong nhóm <b>{replyMode.pausedBy.groupName}</b>
+                  {replyMode.pausedAt &&
+                    ` lúc ${new Date(replyMode.pausedAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`}
+                </p>
+              )}
+            </div>
+            <Button loading={resuming} onClick={resume}>
+              Tiếp tục lắng nghe
+            </Button>
+          </div>
+        )}
         {tab === 'settings' ? (
-          <SettingsView />
+          <SettingsView replyMode={replyMode} onReplyMode={setReplyMode} />
         ) : !connected ? (
           <ZaloConnect status={status} hasSavedSession={hasSavedSession} />
         ) : tab === 'groups' ? (

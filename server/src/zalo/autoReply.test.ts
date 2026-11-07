@@ -99,3 +99,34 @@ test("đường xử lý gọi sendMessage đồng bộ, không chờ gì trư�
   handle(groupMsg("g1", "u1"));
   assert.equal(sent.length, 1, "sendMessage phải được gọi ngay trong cùng tick");
 });
+
+test("trả lời 1 lần rồi dừng: nhóm khác ngay sau đó không được trả lời", async () => {
+  const { replyMode } = await import("../replyMode.js");
+  replyMode.update({ oneShot: true, paused: false });
+  try {
+    rules.upsert({ ...base, groupId: "g1", listenUsers: [{ id: "u1", name: "A" }] });
+    rules.upsert({ ...base, groupId: "g2", listenUsers: [{ id: "u2", name: "B" }] });
+    handle(groupMsg("g1", "u1"));
+    handle(groupMsg("g2", "u2"));
+    handle(groupMsg("g1", "u1"));
+    assert.equal(sent.length, 1);
+    assert.equal(replyMode.get().paused, true);
+    assert.equal(replyMode.get().pausedBy?.groupName, "G");
+
+    replyMode.update({ paused: false });
+    handle(groupMsg("g2", "u2"));
+    assert.equal(sent.length, 2);
+  } finally {
+    replyMode.update({ oneShot: false, paused: false });
+  }
+});
+
+test("chế độ thường không tự dừng", async () => {
+  const { replyMode } = await import("../replyMode.js");
+  rules.upsert({ ...base, groupId: "g1", listenUsers: [{ id: "u1", name: "A" }] });
+  rules.upsert({ ...base, groupId: "g2", listenUsers: [{ id: "u2", name: "B" }] });
+  handle(groupMsg("g1", "u1"));
+  handle(groupMsg("g2", "u2"));
+  assert.equal(sent.length, 2);
+  assert.equal(replyMode.get().paused, false);
+});

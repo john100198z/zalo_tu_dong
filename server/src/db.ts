@@ -7,6 +7,9 @@ fs.mkdirSync(config.dataDir, { recursive: true });
 
 export const db = new Database(path.join(config.dataDir, "app.db"));
 db.pragma("journal_mode = WAL");
+// better-sqlite3 ghi đồng bộ: FULL chờ fsync mỗi lần ghi (vài ms trên VPS) làm đứng event loop.
+// NORMAL + WAL vẫn an toàn khi tiến trình sập, chỉ có thể mất vài lần ghi cuối nếu mất điện.
+db.pragma("synchronous = NORMAL");
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS settings (

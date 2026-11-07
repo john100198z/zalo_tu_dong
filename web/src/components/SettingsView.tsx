@@ -1,8 +1,8 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { api, type TelegramChat, type TelegramSettings } from '../api'
+import { api, type ReplyMode, type TelegramChat, type TelegramSettings } from '../api'
 import { Badge, Button, Card, Spinner, Toggle } from './ui'
 
-export function SettingsView() {
+export function SettingsView({ replyMode, onReplyMode }: { replyMode: ReplyMode | null; onReplyMode: (m: ReplyMode) => void }) {
   const [tg, setTg] = useState<TelegramSettings | null>(null)
   const [token, setToken] = useState('')
   const [chatId, setChatId] = useState('')
@@ -47,6 +47,28 @@ export function SettingsView() {
     <div className="space-y-4">
       <Card className="p-5">
         <div className="flex items-start gap-4">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-violet-500 text-xl text-white">1×</div>
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <h2 className="font-semibold">Trả lời 1 lần rồi dừng</h2>
+              {replyMode?.oneShot ? <Badge tone="green">Đang bật</Badge> : <Badge>Đang tắt</Badge>}
+            </div>
+            <p className="mt-0.5 text-sm text-slate-500">
+              Sau khi tự động trả lời ở <b>một</b> nhóm bất kỳ, bot dừng lắng nghe <b>tất cả</b> nhóm, để không trả lời 2 nhóm
+              khác nhau trong thời gian ngắn. Bấm <b>Tiếp tục lắng nghe</b> để bật lại.
+            </p>
+          </div>
+          <Toggle
+            checked={!!replyMode?.oneShot}
+            disabled={!replyMode || busy !== null}
+            onChange={(oneShot) => act('mode', async () => onReplyMode(await api.saveReplyMode({ oneShot })))}
+            label="Trả lời 1 lần rồi dừng"
+          />
+        </div>
+      </Card>
+
+      <Card className="p-5">
+        <div className="flex items-start gap-4">
           <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-sky-500 text-xl text-white">✈</div>
           <div className="flex-1">
             <div className="flex items-center gap-2">
@@ -80,6 +102,10 @@ export function SettingsView() {
           </li>
           <li>2. Thêm bot vào nhóm Telegram muốn nhận thông báo, rồi gửi 1 tin bất kỳ trong nhóm đó.</li>
           <li>3. Dán token bên dưới, bấm <b>Tìm nhóm</b> để chọn nhóm, sau đó bấm <b>Gửi thử</b> (thông báo sẽ tự bật).</li>
+          <li>
+            4. Trong nhóm Telegram, <b>tag tên bot</b> hoặc gõ <code className="rounded bg-white px-1">/trangthai</code> để mở bảng
+            điều khiển có nút bấm (bật/tắt "trả lời 1 lần rồi dừng", tiếp tục lắng nghe).
+          </li>
         </ol>
 
         <div className="mt-5 space-y-4">
@@ -192,13 +218,12 @@ export function SettingsView() {
       <Card className="p-5">
         <p className="mb-2 text-sm font-medium">Mẫu tin thông báo</p>
         <pre className="rounded-lg bg-slate-50 p-4 font-sans text-sm whitespace-pre-wrap text-slate-700">
-{`✅ Đã trả lời người Nguyễn Văn A
-👥 Nhóm: ABC
-💬 Tin của họ: Có ai không?
-↩️ Tin nhắn trả lời: "em"
-🕒 12:01:03 · ⚡ 142ms
-
-👉 Hãy kiểm tra tin nhắn ở app Zalo.`}
+{`✅ Người gửi: Nguyễn Văn A
+👥 ABC
+💬 Có ai không?
+↩️ "em"
+🥇 Vị trí: #1 · ⚡ 0.14s
+🕒 12:01:03`}
         </pre>
       </Card>
     </div>
