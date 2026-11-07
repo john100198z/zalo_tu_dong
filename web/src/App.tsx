@@ -69,7 +69,7 @@ function Dashboard({ onLoggedOut }: { onLoggedOut: () => void }) {
       <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/80 backdrop-blur">
         <div className="mx-auto flex max-w-4xl items-center gap-3 px-4 py-3">
           <img src="/favicon.svg" alt="" className="size-8" />
-          <h1 className="font-semibold">Zalo Auto Reply</h1>
+          <h1 className="truncate font-semibold">Zalo Auto Reply</h1>
           <StatusPill state={status?.state} online={online} />
           <div className="flex-1" />
           <div className="relative">
@@ -103,7 +103,7 @@ function Dashboard({ onLoggedOut }: { onLoggedOut: () => void }) {
             )}
           </div>
         </div>
-          <nav className="mx-auto flex max-w-4xl gap-1 px-4">
+          <nav className="mx-auto flex max-w-4xl gap-1 px-2 sm:px-4">
             {(
               [
                 ['groups', 'Nhóm'],
@@ -114,7 +114,7 @@ function Dashboard({ onLoggedOut }: { onLoggedOut: () => void }) {
               <button
                 key={key}
                 onClick={() => setTab(key)}
-                className={`-mb-px border-b-2 px-3 py-2.5 text-sm font-medium transition ${
+                className={`-mb-px flex-1 whitespace-nowrap border-b-2 px-1 py-3 text-sm font-medium transition sm:flex-none sm:px-3 sm:py-2.5 ${
                   tab === key ? 'border-brand-500 text-brand-600' : 'border-transparent text-slate-500 hover:text-slate-800'
                 }`}
               >
@@ -127,9 +127,9 @@ function Dashboard({ onLoggedOut }: { onLoggedOut: () => void }) {
           </nav>
       </header>
 
-      <main className="mx-auto max-w-4xl px-4 py-6">
+      <main className="mx-auto max-w-4xl px-3 py-4 sm:px-4 sm:py-6">
         {replyMode?.paused && (
-          <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          <div className="mb-4 flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 sm:flex-row sm:items-center">
             <div className="min-w-0 flex-1">
               <p className="font-semibold">⏸ Đang DỪNG lắng nghe tất cả nhóm</p>
               {replyMode.pausedBy && (
@@ -140,7 +140,7 @@ function Dashboard({ onLoggedOut }: { onLoggedOut: () => void }) {
                 </p>
               )}
             </div>
-            <Button loading={resuming} onClick={resume}>
+            <Button loading={resuming} onClick={resume} className="py-2.5 sm:py-2">
               Tiếp tục lắng nghe
             </Button>
           </div>
@@ -168,9 +168,12 @@ function StatusPill({ state, online }: { state?: string; online: boolean }) {
         ? ['Đang kết nối', 'bg-amber-500 animate-pulse']
         : ['Chưa kết nối Zalo', 'bg-slate-400']
   return (
-    <span className="hidden items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600 sm:inline-flex">
+    <span
+      title={label}
+      className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-slate-100 p-1.5 text-xs font-medium text-slate-600 sm:px-2.5 sm:py-1"
+    >
       <span className={`size-2 rounded-full ${dot}`} />
-      {label}
+      <span className="sr-only sm:not-sr-only">{label}</span>
     </span>
   )
 }

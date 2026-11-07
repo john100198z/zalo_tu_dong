@@ -3,6 +3,7 @@ import { rules, type HotRule } from "../rules.js";
 import { finalizeLog, pushLog } from "../events.js";
 import { replyMode } from "../replyMode.js";
 import { observe, verifyRace } from "./race.js";
+import { archive } from "./archive.js";
 
 const lastReplyAt = new Map<string, number>();
 
@@ -46,6 +47,7 @@ export function createAutoReplyHandler(api: API) {
     const rule = match(msg);
     if (rule) reply(api, msg as GroupMessage, rule);
     observe(msg);
+    archive(msg);
   };
 }
 

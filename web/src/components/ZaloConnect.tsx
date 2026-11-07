@@ -15,7 +15,7 @@ export function ZaloConnect({ status, hasSavedSession }: { status: ZaloStatus | 
   }
 
   return (
-    <Card className="mx-auto max-w-md p-8 text-center">
+    <Card className="mx-auto max-w-md p-5 text-center sm:p-8">
       <h2 className="text-lg font-semibold">Kết nối tài khoản Zalo</h2>
 
       {(!status || status.state === 'connecting') && (
@@ -44,7 +44,7 @@ export function ZaloConnect({ status, hasSavedSession }: { status: ZaloStatus | 
       {status?.state === 'qr' && (
         <div className="mt-4">
           <div className="mx-auto w-fit rounded-xl border border-slate-200 bg-white p-3">
-            <img src={status.image} alt="Mã QR đăng nhập Zalo" className="size-60" />
+            <img src={status.image} alt="Mã QR đăng nhập Zalo" className="size-56 sm:size-60" />
           </div>
           <ol className="mx-auto mt-5 max-w-xs space-y-1 text-left text-sm text-slate-600">
             <li>1. Mở app Zalo trên điện thoại</li>

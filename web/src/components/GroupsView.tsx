@@ -96,7 +96,7 @@ export function GroupsView({ meta }: { meta: { maxListenUsers: number; defaultRe
   ]
 
   return (
-    <div className={`space-y-4 ${selecting ? 'pb-40 sm:pb-24' : ''}`}>
+    <div className={`space-y-4 ${selecting ? 'pb-56 sm:pb-24' : ''}`}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <input
           value={query}
@@ -153,7 +153,7 @@ export function GroupsView({ meta }: { meta: { maxListenUsers: number; defaultRe
             <div
               key={g.id}
               onClick={() => (selecting ? toggleSelect(g.id) : setEditing(g))}
-              className={`flex cursor-pointer items-center gap-3 px-4 py-3 transition hover:bg-slate-50 ${
+              className={`flex cursor-pointer items-center gap-3 px-3 py-3 transition hover:bg-slate-50 active:bg-slate-100 sm:px-4 ${
                 selecting && selected.has(g.id) ? 'bg-brand-50/60' : ''
               }`}
             >
@@ -163,10 +163,10 @@ export function GroupsView({ meta }: { meta: { maxListenUsers: number; defaultRe
                   checked={selected.has(g.id)}
                   onChange={() => toggleSelect(g.id)}
                   onClick={(e) => e.stopPropagation()}
-                  className="size-4 shrink-0 accent-brand-500"
+                  className="size-5 shrink-0 accent-brand-500 sm:size-4"
                 />
               )}
-              <Avatar src={g.avatar} name={g.name} size="size-11" />
+              <Avatar src={g.avatar} name={g.name} size="size-10 sm:size-11" />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <p className="truncate font-medium">{g.name}</p>
@@ -251,8 +251,8 @@ function BulkBar({
   }
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] backdrop-blur">
-      <div className="mx-auto flex max-w-4xl flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center">
+    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_20px_rgba(0,0,0,0.06)] backdrop-blur">
+      <div className="mx-auto flex max-w-4xl flex-col gap-2 px-3 py-3 sm:flex-row sm:items-center sm:px-4">
         <p className="shrink-0 text-sm font-medium">
           Đã chọn <span className="text-brand-600">{count}</span> nhóm
         </p>
@@ -262,7 +262,7 @@ function BulkBar({
           placeholder={`Tin trả lời (mặc định "${defaultReply}")`}
           className="min-w-0 flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-100"
         />
-        <div className="flex flex-wrap gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:flex">
           <Button disabled={!count || !!busy} loading={busy === 'listen'} onClick={() => run('listen')}
             title="Nhóm chưa cấu hình sẽ nghe trưởng nhóm. Nhóm đã cấu hình sẽ được bật lại">
             Lắng nghe

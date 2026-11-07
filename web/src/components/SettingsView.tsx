@@ -45,11 +45,11 @@ export function SettingsView({ replyMode, onReplyMode }: { replyMode: ReplyMode 
 
   return (
     <div className="space-y-4">
-      <Card className="p-5">
-        <div className="flex items-start gap-4">
+      <Card className="p-4 sm:p-5">
+        <div className="flex items-start gap-3 sm:gap-4">
           <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-violet-500 text-xl text-white">1×</div>
           <div className="flex-1">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <h2 className="font-semibold">Trả lời 1 lần rồi dừng</h2>
               {replyMode?.oneShot ? <Badge tone="green">Đang bật</Badge> : <Badge>Đang tắt</Badge>}
             </div>
@@ -67,11 +67,11 @@ export function SettingsView({ replyMode, onReplyMode }: { replyMode: ReplyMode 
         </div>
       </Card>
 
-      <Card className="p-5">
-        <div className="flex items-start gap-4">
+      <Card className="p-4 sm:p-5">
+        <div className="flex items-start gap-3 sm:gap-4">
           <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-sky-500 text-xl text-white">✈</div>
           <div className="flex-1">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <h2 className="font-semibold">Thông báo qua Telegram</h2>
               {tg.enabled && ready ? <Badge tone="green">Đang bật</Badge> : <Badge>Đang tắt</Badge>}
             </div>
@@ -137,16 +137,17 @@ export function SettingsView({ replyMode, onReplyMode }: { replyMode: ReplyMode 
             <label className="mb-1.5 block text-sm font-medium" htmlFor="tg-chat">
               Nhóm Telegram nhận thông báo (chat ID)
             </label>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2 sm:flex-nowrap">
               <input
                 id="tg-chat"
                 value={chatId}
                 onChange={(e) => setChatId(e.target.value)}
                 placeholder="-1001234567890"
-                className="min-w-0 flex-1 rounded-lg border border-slate-200 px-3 py-2 font-mono text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-100"
+                className="w-full min-w-0 flex-1 basis-full rounded-lg sm:basis-auto border border-slate-200 px-3 py-2 font-mono text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-100"
               />
               <Button
                 variant="secondary"
+                className="flex-1 sm:flex-none"
                 disabled={!tg.hasToken}
                 loading={busy === 'chats'}
                 onClick={() => act('chats', async () => setChats(await api.telegramChats()))}
@@ -154,6 +155,7 @@ export function SettingsView({ replyMode, onReplyMode }: { replyMode: ReplyMode 
                 Tìm nhóm
               </Button>
               <Button
+                className="flex-1 sm:flex-none"
                 disabled={!chatId.trim() || chatId.trim() === tg.chatId}
                 loading={busy === 'save'}
                 onClick={() => save({ chatId: chatId.trim() }, 'Đã lưu chat ID')}
@@ -179,9 +181,11 @@ export function SettingsView({ replyMode, onReplyMode }: { replyMode: ReplyMode 
                       }}
                       className="flex w-full items-center gap-3 border-b border-slate-100 px-3 py-2.5 text-left text-sm last:border-0 hover:bg-slate-50"
                     >
-                      <span className="flex-1 font-medium">{c.title}</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-medium">{c.title}</span>
+                        <span className="block truncate font-mono text-xs text-slate-400">{c.id}</span>
+                      </span>
                       <Badge>{c.type === 'private' ? 'Cá nhân' : c.type === 'channel' ? 'Kênh' : 'Nhóm'}</Badge>
-                      <span className="font-mono text-xs text-slate-400">{c.id}</span>
                     </button>
                   ))
                 )}
@@ -215,7 +219,7 @@ export function SettingsView({ replyMode, onReplyMode }: { replyMode: ReplyMode 
         </div>
       </Card>
 
-      <Card className="p-5">
+      <Card className="p-4 sm:p-5">
         <p className="mb-2 text-sm font-medium">Mẫu tin thông báo</p>
         <pre className="rounded-lg bg-slate-50 p-4 font-sans text-sm whitespace-pre-wrap text-slate-700">
 {`✅ Người gửi: Nguyễn Văn A
@@ -232,8 +236,8 @@ export function SettingsView({ replyMode, onReplyMode }: { replyMode: ReplyMode 
 
 function Option({ title, desc, children }: { title: string; desc: string; children: ReactNode }) {
   return (
-    <div className="flex items-center gap-4 px-3 py-3">
-      <div className="flex-1">
+    <div className="flex items-center gap-3 px-3 py-3">
+      <div className="min-w-0 flex-1">
         <p className="text-sm font-medium">{title}</p>
         <p className="text-xs text-slate-500">{desc}</p>
       </div>

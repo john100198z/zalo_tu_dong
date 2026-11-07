@@ -16,6 +16,7 @@ bus.on("status", (s) => broadcast("status", s));
 bus.on("log", (l) => broadcast("log", l));
 bus.on("log_update", (l) => broadcast("log_update", l));
 bus.on("reply_mode", (m) => broadcast("reply_mode", m));
+bus.on("chat", (c) => clients.size && broadcast("chat", c));
 
 export function registerWs(app: FastifyInstance) {
   app.get("/ws", { websocket: true }, (socket, req) => {

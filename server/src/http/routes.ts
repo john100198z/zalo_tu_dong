@@ -3,6 +3,7 @@ import { zalo } from "../zalo/service.js";
 import { rules, type ListenUser } from "../rules.js";
 import { recentLogs } from "../events.js";
 import { replyMode } from "../replyMode.js";
+import { getMessages, listThreads, setThreadName } from "../zalo/archive.js";
 import { DEFAULT_REPLY, MAX_LISTEN_USERS } from "../config.js";
 import { requireAuth } from "./auth.js";
 import { telegram, type TelegramSettings } from "../telegram.js";
@@ -69,6 +70,9 @@ const telegramSchema = {
   },
   additionalProperties: false,
 } as const;
+
+// Tên người trong tin nhắn riêng chỉ hỏi Zalo 1 lần mỗi lần chạy, tránh gọi API lặp lại khi mở trang.
+const triedNames = new Set<string>();
 
 export function registerApiRoutes(app: FastifyInstance) {
   app.register(async (api) => {
@@ -197,6 +201,29 @@ export function registerApiRoutes(app: FastifyInstance) {
     api.get("/api/logs", async () => recentLogs());
 
     api.get("/api/reply-mode", async () => replyMode.get());
+
+    // Trang /message: CHỈ XEM. Không có route gửi tin, không gọi API "đã xem" của Zalo.
+    api.get("/api/chats", async () => {
+      const threads = listThreads();
+      const groups = await zalo.getGroups().catch(() => []);
+      const groupInfo = new Map(groups.map((g) => [g.id, g]));
+      const unnamed = threads.filter((t) => !t.isGroup && !t.name && !triedNames.has(t.threadId)).map((t) => t.threadId);
+      for (const id of unnamed) triedNames.add(id);
+      const names = unnamed.length ? await zalo.getUserNames(unnamed).catch(() => new Map<string, string>()) : new Map<string, string>();
+      return threads.map((t) => {
+        const g = t.isGroup ? groupInfo.get(t.threadId) : undefined;
+        let name = g?.name || t.name;
+        if (!name && names.get(t.threadId)) {
+          name = names.get(t.threadId)!;
+          setThreadName(t.threadId, name);
+        }
+        return { ...t, name: name || t.threadId, avatar: g?.avatar ?? "" };
+      });
+    });
+
+    api.get<{ Params: { id: string }; Querystring: { before?: string } }>("/api/chats/:id/messages", async (req) =>
+      getMessages(req.params.id, req.query.before ? Number(req.query.before) : undefined),
+    );
 
     api.put<{ Body: { oneShot?: boolean; paused?: boolean } }>(
       "/api/reply-mode",

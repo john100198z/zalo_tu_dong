@@ -21,7 +21,7 @@ export function LogsView({ logs }: { logs: ReplyLog[] }) {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
         <Stat label="Đã trả lời" value={String(ok.length)} />
         <Stat
           label="Trả lời đầu tiên"
@@ -43,22 +43,30 @@ export function LogsView({ logs }: { logs: ReplyLog[] }) {
         ) : (
           <ul className="divide-y divide-slate-100">
             {logs.map((l) => (
-              <li key={l.id} className="flex gap-3 px-4 py-3 text-sm">
-                <span className="w-16 shrink-0 font-mono text-xs leading-5 text-slate-400">{time(l.at)}</span>
+              <li key={l.id} className="flex gap-3 px-3 py-3 text-sm sm:px-4">
+                <span className="hidden w-16 shrink-0 font-mono text-xs leading-5 text-slate-400 sm:block">{time(l.at)}</span>
                 <div className="min-w-0 flex-1">
                   <p className="truncate">
                     <span className="font-medium">{l.senderName}</span>
                     <span className="text-slate-400"> trong </span>
                     <span className="font-medium">{l.groupName}</span>
                   </p>
-                  <p className="truncate text-slate-500">
+                  <p className="line-clamp-2 break-words text-slate-500 sm:truncate">
                     {l.text} <span className="text-slate-300">→</span>{' '}
                     {l.ok ? <span className="text-slate-700">“{l.reply}”</span> : <span className="text-red-600">Lỗi: {l.error}</span>}
                   </p>
-                  {l.ok && <RaceLine log={l} />}
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    {l.ok && <RaceLine log={l} />}
+                    <span className="mt-1 font-mono text-xs text-slate-400 sm:hidden">
+                      {time(l.at)}
+                      {l.ok && l.race?.ourDeltaMs != null && (
+                        <span className={`ml-2 ${speedTone(l.race.ourDeltaMs)}`}>⚡ {secs(l.race.ourDeltaMs)}</span>
+                      )}
+                    </span>
+                  </div>
                 </div>
                 {l.ok && l.race?.ourDeltaMs != null && (
-                  <div className="shrink-0 text-right font-mono text-xs leading-5">
+                  <div className="hidden shrink-0 text-right font-mono text-xs leading-5 sm:block">
                     <p className={speedTone(l.race.ourDeltaMs)} title="Tốc độ theo đồng hồ server Zalo">
                       {secs(l.race.ourDeltaMs)}
                     </p>
@@ -92,7 +100,7 @@ function RaceLine({ log }: { log: ReplyLog }) {
     )
   }
   return (
-    <div className="mt-1 space-y-0.5">
+    <div className="mt-1 w-full space-y-0.5">
       <span className="rounded-md bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-700">
         ⚠️ #{r.rank}, {r.ahead.length} người nhắn trước mình
       </span>
@@ -107,9 +115,9 @@ function RaceLine({ log }: { log: ReplyLog }) {
 
 function Stat({ label, value, tone, hint }: { label: string; value: string; tone?: string; hint?: string }) {
   return (
-    <Card className="p-4">
-      <p className="text-xs text-slate-500" title={hint}>{label}</p>
-      <p className={`mt-1 text-2xl font-semibold tabular-nums ${tone ?? ''}`}>{value}</p>
+    <Card className="p-3 sm:p-4">
+      <p className="truncate text-xs text-slate-500" title={hint}>{label}</p>
+      <p className={`mt-1 text-xl font-semibold tabular-nums sm:text-2xl ${tone ?? ''}`}>{value}</p>
     </Card>
   )
 }

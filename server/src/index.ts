@@ -26,9 +26,13 @@ registerWs(app);
 
 if (fs.existsSync(config.webDist)) {
   await app.register(fastifyStatic, { root: config.webDist });
-  app.setNotFoundHandler((req, reply) =>
-    req.url.startsWith("/api") ? reply.code(404).send({ error: "Not found" }) : reply.sendFile("index.html"),
-  );
+  app.setNotFoundHandler((req, reply) => {
+    const path = req.url.split("?")[0];
+    if (path.startsWith("/api")) return reply.code(404).send({ error: "Not found" });
+    // Trang xem tin nhắn độc lập: chỉ phục vụ khi gõ thẳng /message.
+    if (path === "/message" || path.startsWith("/message/")) return reply.sendFile("message.html");
+    return reply.sendFile("index.html");
+  });
 }
 
 await app.listen({ port: config.port, host: config.host });

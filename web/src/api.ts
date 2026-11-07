@@ -56,6 +56,31 @@ export type ReplyLog = {
   pausedAfter?: boolean
 }
 
+export type ChatMessage = {
+  threadId: string
+  msgId: string
+  isGroup: boolean
+  uid: string
+  name: string
+  ts: number
+  isSelf: boolean
+  kind: string
+  text: string
+  attach?: { title?: string; href?: string; thumb?: string }
+  quote?: { name: string; text: string }
+}
+
+export type ChatThread = {
+  threadId: string
+  isGroup: boolean
+  name: string
+  avatar: string
+  lastTs: number
+  lastText: string
+  lastName: string
+  lastSelf: boolean
+}
+
 export type ReplyMode = {
   oneShot: boolean
   paused: boolean
@@ -118,6 +143,9 @@ export const api = {
   bulk: (action: BulkAction, groupIds: string[], reply?: string) =>
     request<{ groupId: string; rule: GroupRule | null }[]>('POST', '/api/rules/bulk', { action, groupIds, reply }),
   logs: () => request<ReplyLog[]>('GET', '/api/logs'),
+  chats: () => request<ChatThread[]>('GET', '/api/chats'),
+  chatMessages: (threadId: string, before?: number) =>
+    request<ChatMessage[]>('GET', `/api/chats/${encodeURIComponent(threadId)}/messages${before ? `?before=${before}` : ''}`),
   saveReplyMode: (patch: { oneShot?: boolean; paused?: boolean }) =>
     request<ReplyMode>('PUT', '/api/reply-mode', patch),
 

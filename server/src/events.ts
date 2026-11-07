@@ -1,5 +1,6 @@
 import { EventEmitter } from "node:events";
 import type { ReplyMode } from "./replyMode.js";
+import type { ChatMessage } from "./zalo/archive.js";
 import { db } from "./db.js";
 
 export type ZaloStatus =
@@ -51,6 +52,8 @@ type BusEvents = {
   /** Dòng nhật ký đã hoàn tất (đã có vị trí hoặc gửi lỗi), dùng cho thông báo. */
   log_final: [ReplyLog];
   reply_mode: [ReplyMode];
+  /** Tin nhắn mới đã lưu cho trang /message (gom theo lô). */
+  chat: [ChatMessage[]];
 };
 
 export const bus = new EventEmitter<BusEvents>();

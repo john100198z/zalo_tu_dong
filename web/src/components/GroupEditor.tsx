@@ -134,7 +134,7 @@ export function GroupEditor({ group, maxListenUsers, defaultReply, onClose, onSa
           </button>
         </header>
 
-        <div className="flex-1 space-y-6 overflow-y-auto p-4">
+        <div className="flex-1 space-y-6 overflow-y-auto overscroll-contain p-4">
           <section>
             <div className="mb-2 flex items-baseline justify-between">
               <h3 className="text-sm font-semibold">Người được lắng nghe</h3>
@@ -166,7 +166,7 @@ export function GroupEditor({ group, maxListenUsers, defaultReply, onClose, onSa
               placeholder="Tìm thành viên..."
               className="mb-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-100"
             />
-            <div className="max-h-64 overflow-y-auto rounded-lg border border-slate-100">
+            <div className="max-h-56 overflow-y-auto overscroll-contain rounded-lg border border-slate-100 sm:max-h-64">
               {!members && !loadError && (
                 <div className="flex justify-center p-6 text-slate-400">
                   <Spinner />
@@ -179,14 +179,14 @@ export function GroupEditor({ group, maxListenUsers, defaultReply, onClose, onSa
                 return (
                   <label
                     key={m.id}
-                    className={`flex cursor-pointer items-center gap-3 px-3 py-2 hover:bg-slate-50 ${disabled ? 'cursor-not-allowed opacity-40' : ''}`}
+                    className={`flex cursor-pointer items-center gap-3 px-3 py-2.5 hover:bg-slate-50 active:bg-slate-100 sm:py-2 ${disabled ? 'cursor-not-allowed opacity-40' : ''}`}
                   >
                     <input
                       type="checkbox"
                       checked={checked}
                       disabled={disabled}
                       onChange={() => toggle(m)}
-                      className="size-4 accent-brand-500"
+                      className="size-5 accent-brand-500 sm:size-4"
                     />
                     <Avatar src={m.avatar} name={m.name} size="size-8" />
                     <span className="min-w-0 flex-1">
@@ -259,18 +259,18 @@ export function GroupEditor({ group, maxListenUsers, defaultReply, onClose, onSa
           </section>
         </div>
 
-        <footer className="flex items-center gap-2 border-t border-slate-100 p-4">
+        {error && <p className="border-t border-red-100 bg-red-50 px-4 py-2 text-sm text-red-600">{error}</p>}
+        <footer className="flex items-center gap-2 border-t border-slate-100 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:p-4">
           {rule && (
             <Button variant="danger" onClick={remove} disabled={saving}>
               Ngừng nghe
             </Button>
           )}
           <div className="flex-1" />
-          {error && <p className="mr-2 text-sm text-red-600">{error}</p>}
           <Button variant="secondary" onClick={onClose}>
             Huỷ
           </Button>
-          <Button onClick={save} loading={saving}>
+          <Button onClick={save} loading={saving} className="min-w-20">
             Lưu
           </Button>
         </footer>
@@ -290,8 +290,8 @@ function ago(ts: number) {
 
 function Row({ title, desc, children }: { title: string; desc: string; children: ReactNode }) {
   return (
-    <div className="flex items-center gap-4 px-3 py-3">
-      <div className="flex-1">
+    <div className="flex items-center gap-3 px-3 py-3">
+      <div className="min-w-0 flex-1">
         <p className="text-sm font-medium">{title}</p>
         <p className="text-xs text-slate-500">{desc}</p>
       </div>

@@ -12,3 +12,17 @@
 body {
   @apply bg-slate-50 text-slate-900 antialiased;
 }
+
+html {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* iOS tự phóng to khi chạm vào ô nhập chữ nhỏ hơn 16px. */
+@media (max-width: 639px) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}

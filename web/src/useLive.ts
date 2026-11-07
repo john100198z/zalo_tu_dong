@@ -1,5 +1,16 @@
 import { useEffect, useState } from 'react'
-import { api, type ReplyLog, type ReplyMode, type ZaloStatus } from './api'
+import { api, type ChatMessage, type ReplyLog, type ReplyMode, type ZaloStatus } from './api'
+
+type ChatListener = (msgs: ChatMessage[]) => void
+const chatListeners = new Set<ChatListener>()
+
+/** Đăng ký nhận tin nhắn mới (trang Tin nhắn). Trả về hàm huỷ đăng ký. */
+export function onChat(fn: ChatListener) {
+  chatListeners.add(fn)
+  return () => {
+    chatListeners.delete(fn)
+  }
+}
 
 const LOG_LIMIT = 200
 
@@ -32,6 +43,8 @@ export function useLive(onUnauthorized: () => void) {
           setLogs((prev) => [data, ...prev].slice(0, LOG_LIMIT))
         } else if (type === 'log_update') {
           setLogs((prev) => prev.map((l) => (l.id === data.id ? data : l)))
+        } else if (type === 'chat') {
+          for (const fn of chatListeners) fn(data)
         } else if (type === 'reply_mode') {
           setReplyMode(data)
         }
