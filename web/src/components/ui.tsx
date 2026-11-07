@@ -110,7 +110,7 @@ export function Badge({ tone = 'slate', children }: { tone?: 'slate' | 'brand' |
     green: 'bg-emerald-50 text-emerald-700',
     red: 'bg-red-50 text-red-700',
   }
-  return <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-xs font-medium ${tones[tone]}`}>{children}</span>
+  return <span className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-md px-1.5 py-0.5 text-xs font-medium ${tones[tone]}`}>{children}</span>
 }
 
 export function Card({ className = '', children }: { className?: string; children: ReactNode }) {
