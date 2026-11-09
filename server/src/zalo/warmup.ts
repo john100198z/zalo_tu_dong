@@ -26,8 +26,8 @@ let inFlight = false;
 let lastAt = 0;
 let rot = 0;
 let lastMethod = "ping";
-// Tin nhóm gần nhất bot thấy, dùng cho lượt "đánh dấu đã xem".
-let lastGroupMsg: Parameters<API["sendSeenEvent"]>[0] | null = null;
+// Tin gần nhất của ĐÚNG nhóm giữ ấm, dùng cho lượt "đánh dấu đã xem".
+let lastMsg: { groupId: string; data: Parameters<API["sendSeenEvent"]>[0] } | null = null;
 let ping: () => Promise<unknown> = defaultPing;
 
 /**
@@ -36,9 +36,12 @@ let ping: () => Promise<unknown> = defaultPing;
  */
 export const isListening = () => rules.hot.size > 0 && replyMode.isActive();
 
-/** Ghi nhớ tin nhóm gần nhất (không phải tin của mình) để dùng cho lượt ping "đã xem". */
+/** Ghi nhớ tin gần nhất của ĐÚNG nhóm giữ ấm (không phải tin của mình) để dùng cho lượt "đã xem". */
 export function rememberGroupMessage(msg: GroupMessage) {
-  lastGroupMsg = msg.data as unknown as Parameters<API["sendSeenEvent"]>[0];
+  const gid = pingGroupId();
+  if (gid && msg.threadId === gid) {
+    lastMsg = { groupId: gid, data: msg.data as unknown as Parameters<API["sendSeenEvent"]>[0] };
+  }
 }
 
 /** Nhóm dùng để xem thông tin: nhóm người dùng đã chọn, nếu không có thì lấy 1 nhóm đang nghe. */
@@ -50,16 +53,17 @@ function defaultPing(): Promise<unknown> {
   if (!currentApi) return Promise.resolve();
   const gid = pingGroupId();
   // Xoay vòng cho giống thao tác người thật: xem thông tin nhóm → đánh dấu đã xem → "đang soạn tin".
+  if (!gid) return Promise.resolve();
   const step = rot++ % 3;
-  if (step === 1 && lastGroupMsg) {
+  // Cả 3 đều nhắm đúng nhóm được chọn (gid). "Seen" chỉ chạy khi nhóm đó có tin đã lưu, nếu không → getGroupInfo.
+  if (step === 1 && lastMsg?.groupId === gid) {
     lastMethod = "seen";
-    return currentApi.sendSeenEvent(lastGroupMsg, ThreadType.Group);
+    return currentApi.sendSeenEvent(lastMsg.data, ThreadType.Group);
   }
-  if (step === 2 && gid) {
+  if (step === 2) {
     lastMethod = "typing";
     return currentApi.sendTypingEvent(gid, ThreadType.Group);
   }
-  if (!gid) return Promise.resolve();
   lastMethod = "groupInfo";
   return currentApi.getGroupInfo(gid);
 }

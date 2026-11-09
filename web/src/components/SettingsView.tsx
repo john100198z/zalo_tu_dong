@@ -120,7 +120,7 @@ export function SettingsView({ replyMode, onReplyMode }: { replyMode: ReplyMode 
         <div className="flex items-start gap-3 sm:gap-4">
           <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-rose-500 text-xl text-white">🔥</div>
           <div className="flex-1">
-            <h2 className="font-semibold">Nhóm giữ ấm kết nối</h2>
+            <h2 className="font-semibold">Nhóm giữ ấm kết nối (chọn 1 nhóm để tốc độ phản hồi tự động được nhanh hơn)</h2>
             <p className="mt-0.5 text-sm text-slate-500">
               Bot định kỳ gọi tới một nhóm (xem thông tin · đánh dấu đã xem · "đang soạn tin", xoay vòng) để giữ kết nối tới
               máy chủ Zalo luôn "ấm", nhờ đó lúc cần trả lời không phải mở lại kết nối (nhanh hơn ~60ms). Nên chọn một{' '}
