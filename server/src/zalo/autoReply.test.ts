@@ -130,3 +130,22 @@ test("chế độ thường không tự dừng", async () => {
   assert.equal(sent.length, 2);
   assert.equal(replyMode.get().paused, false);
 });
+
+test("nghỉ làm (ĐANG DỪNG) thì không trả lời; vào làm thì trả lời lại và bỏ trạng thái dừng cũ", async () => {
+  const { replyMode } = await import("../replyMode.js");
+  rules.upsert({ ...base, groupId: "g1", listenUsers: [{ id: "u1", name: "A" }] });
+  try {
+    replyMode.update({ working: false });
+    handle(groupMsg("g1", "u1"));
+    assert.equal(sent.length, 0, "đang nghỉ làm thì không trả lời");
+
+    replyMode.update({ oneShot: true });
+    replyMode.claim("G", "A");
+    replyMode.update({ working: true });
+    assert.equal(replyMode.get().paused, false, "vào làm thì bỏ trạng thái dừng của lần trả lời 1 lần trước");
+    handle(groupMsg("g1", "u1"));
+    assert.equal(sent.length, 1);
+  } finally {
+    replyMode.update({ working: true, oneShot: false, paused: false });
+  }
+});

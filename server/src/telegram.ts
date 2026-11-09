@@ -109,7 +109,9 @@ function toChat(chat: Record<string, any>): TelegramChat {
 function formatPanel(status: ZaloStatus | null, header?: string) {
   const mode = replyMode.get();
   const groups = rules.hot.size;
-  const listening = mode.paused
+  const listening = !mode.working
+    ? `🔴 <b>ĐANG DỪNG</b> (nghỉ làm, không trả lời nhóm nào)`
+    : mode.paused
     ? `⏸ <b>ĐANG DỪNG lắng nghe tất cả nhóm</b>`
     : status?.state !== "connected"
       ? `🔴 <b>KHÔNG trả lời được</b> vì Zalo chưa kết nối`
@@ -120,7 +122,7 @@ function formatPanel(status: ZaloStatus | null, header?: string) {
     ...(header ? [header, PANEL_SEPARATOR] : [`🤖 <b>Zalo Auto Reply</b>`, ``]),
     zaloLine(status),
     listening,
-    ...(mode.paused && mode.pausedBy
+    ...(mode.working && mode.paused && mode.pausedBy
       ? [
           `↳ Đã trả lời 1 lần: <b>${escapeHtml(mode.pausedBy.senderName)}</b> trong nhóm <b>${escapeHtml(mode.pausedBy.groupName)}</b>` +
             (mode.pausedAt ? ` lúc ${time(mode.pausedAt)}` : ""),
@@ -134,12 +136,17 @@ function panelKeyboard() {
   const mode = replyMode.get();
   const rows = [
     [
+      mode.working
+        ? { text: "🟢 ĐANG LÀM VIỆC (ấn nếu dừng hoạt động)", callback_data: "work_off" }
+        : { text: "🔴 ĐANG DỪNG (ấn nếu muốn làm việc)", callback_data: "work_on" },
+    ],
+    [
       mode.oneShot
         ? { text: "🟢 1 lần rồi dừng: ON (bấm để tắt)", callback_data: "oneshot_off" }
         : { text: "⚪ 1 lần rồi dừng: OFF (bấm để mở)", callback_data: "oneshot_on" },
     ],
   ];
-  if (mode.paused) rows.push([{ text: "▶️ Tiếp tục lắng nghe", callback_data: "resume" }]);
+  if (mode.working && mode.paused) rows.push([{ text: "▶️ Tiếp tục lắng nghe", callback_data: "resume" }]);
   rows.push([{ text: "🔄 Làm mới", callback_data: "refresh" }]);
   return { inline_keyboard: rows };
 }
@@ -249,7 +256,13 @@ class TelegramNotifier {
       return;
     }
     let toast = "Đã cập nhật";
-    if (cq.data === "oneshot_on") {
+    if (cq.data === "work_on") {
+      replyMode.update({ working: true });
+      toast = "🟢 Đã VÀO LÀM: bot bắt đầu trả lời";
+    } else if (cq.data === "work_off") {
+      replyMode.update({ working: false });
+      toast = "🔴 Đã NGHỈ LÀM: bot dừng trả lời";
+    } else if (cq.data === "oneshot_on") {
       replyMode.update({ oneShot: true });
       toast = "Đã BẬT: trả lời 1 lần rồi dừng";
     } else if (cq.data === "oneshot_off") {

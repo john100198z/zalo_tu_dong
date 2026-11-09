@@ -82,6 +82,7 @@ export type ChatThread = {
 }
 
 export type ReplyMode = {
+  working: boolean
   oneShot: boolean
   paused: boolean
   pausedAt?: number
@@ -146,7 +147,7 @@ export const api = {
   chats: () => request<ChatThread[]>('GET', '/api/chats'),
   chatMessages: (threadId: string, before?: number) =>
     request<ChatMessage[]>('GET', `/api/chats/${encodeURIComponent(threadId)}/messages${before ? `?before=${before}` : ''}`),
-  saveReplyMode: (patch: { oneShot?: boolean; paused?: boolean }) =>
+  saveReplyMode: (patch: { working?: boolean; oneShot?: boolean; paused?: boolean }) =>
     request<ReplyMode>('PUT', '/api/reply-mode', patch),
 
   telegram: () => request<TelegramSettings>('GET', '/api/telegram'),

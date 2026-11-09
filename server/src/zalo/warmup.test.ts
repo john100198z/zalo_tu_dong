@@ -45,14 +45,23 @@ test("chỉ bắn HEAD khi đang lắng nghe; dừng sau khi trả lời 1 lần
   assert.equal(calls.length, 2, "bấm Tiếp tục lắng nghe thì bắn ngay, đúng 1 lần");
   await new Promise((r) => setTimeout(r, 2_100));
 
+  await new Promise((r) => setTimeout(r, 2_100));
+  replyMode.update({ working: false });
+  await warmTick();
+  assert.equal(calls.length, 2, "nghỉ làm thì không bắn");
+  replyMode.update({ working: true });
+  await tick();
+  assert.equal(calls.length, 3, "vào làm thì bắn ngay");
+  await new Promise((r) => setTimeout(r, 2_100));
+
   rules.upsert({ ...rules.get("g1")!, enabled: false });
   await warmTick();
-  assert.equal(calls.length, 2, "tắt hết nhóm thì không bắn");
+  assert.equal(calls.length, 3, "tắt hết nhóm thì không bắn");
 
   stopWarmup();
   rules.upsert({ ...rules.get("g1")!, enabled: true });
   await warmTick();
-  assert.equal(calls.length, 2, "mất kết nối Zalo (đã stop) thì không bắn");
+  assert.equal(calls.length, 3, "mất kết nối Zalo (đã stop) thì không bắn");
   rules.remove("g1");
   replyMode.update({ oneShot: false, paused: false });
 });

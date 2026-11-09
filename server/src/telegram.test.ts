@@ -76,7 +76,7 @@ test("nút Telegram: bật/tắt 1 lần rồi dừng, tiếp tục lắng nghe,
   assert.ok(calls.some((c) => c.url.endsWith("/answerCallbackQuery")));
   const edit = calls.find((c) => c.url.endsWith("/editMessageText"));
   assert.match(edit!.body.text, /Trả lời 1 lần rồi dừng: <b>đang mở<\/b>/);
-  assert.equal(edit!.body.reply_markup.inline_keyboard.length, 2, "chưa dừng thì không có nút Tiếp tục");
+  assert.equal(edit!.body.reply_markup.inline_keyboard.length, 3, "chưa dừng thì không có nút Tiếp tục (ca làm, 1 lần, làm mới)");
 
   replyMode.claim("Nhậu", "Quang");
   calls.length = 0;
@@ -148,8 +148,8 @@ test("tắt chế độ 1 lần khi đang dừng thì tự lắng nghe lại, n�
   await t.handleUpdate("123:abc", { update_id: 4, callback_query: { id: "cb", data: "oneshot_off", message: { chat: { id: -100 }, message_id: 12 } } });
   assert.deepEqual([replyMode.get().oneShot, replyMode.get().paused], [false, false]);
   const kb = calls.find((c) => c.url.endsWith("/editMessageText") && c.body.message_id === 12)!.body.reply_markup.inline_keyboard;
-  assert.equal(kb[0].length, 1);
-  assert.equal(kb[0][0].callback_data, "oneshot_on");
+  assert.equal(kb[1].length, 1);
+  assert.equal(kb[1][0].callback_data, "oneshot_on");
   assert.equal(kb.flat().some((b: any) => b.callback_data === "resume"), false);
 });
 
@@ -169,4 +169,29 @@ test("chỉ tin mới nhất có nút, tin cũ bị gỡ nút và bỏ phần tr
   const second = calls.find((c) => c.body.message_id === 21)!;
   assert.match(second.url, /editMessageReplyMarkup$/);
   assert.deepEqual(second.body.reply_markup.inline_keyboard, []);
+});
+
+test("nút ca làm việc: ĐANG LÀM VIỆC / ĐANG DỪNG, bấm để đổi", async () => {
+  const { replyMode } = await import("./replyMode.js");
+  telegram.save({ token: "123:abc", chatId: "-100", enabled: true });
+  replyMode.update({ working: true, oneShot: false, paused: false });
+  const t = telegram as any;
+  t.panel = null;
+  const press = (data: string) =>
+    t.handleUpdate("123:abc", { update_id: 9, callback_query: { id: "cb", data, message: { chat: { id: -100 }, message_id: 30 } } });
+  const lastEdit = () => calls.filter((c) => c.url.endsWith("/editMessageText") && c.body.message_id === 30).at(-1)!.body;
+
+  calls.length = 0;
+  await press("work_off");
+  assert.equal(replyMode.get().working, false);
+  let body = lastEdit();
+  assert.equal(body.reply_markup.inline_keyboard[0][0].text, "🔴 ĐANG DỪNG (ấn nếu muốn làm việc)");
+  assert.equal(body.reply_markup.inline_keyboard[0][0].callback_data, "work_on");
+  assert.match(body.text, /ĐANG DỪNG<\/b> \(nghỉ làm/);
+
+  await press("work_on");
+  assert.equal(replyMode.get().working, true);
+  body = lastEdit();
+  assert.equal(body.reply_markup.inline_keyboard[0][0].text, "🟢 ĐANG LÀM VIỆC (ấn nếu dừng hoạt động)");
+  assert.equal(body.reply_markup.inline_keyboard[0][0].callback_data, "work_off");
 });

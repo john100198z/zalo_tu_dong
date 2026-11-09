@@ -20,7 +20,7 @@ function markSeen(msgId: string): boolean {
 
 /** Trả về rule nếu tin này cần được trả lời. Chỉ đọc Map trong RAM. */
 function match(msg: Message): HotRule | undefined {
-  if (msg.type !== ThreadType.Group || msg.isSelf || replyMode.isPaused()) return;
+  if (msg.type !== ThreadType.Group || msg.isSelf || !replyMode.isActive()) return;
   const rule = rules.hot.get(msg.threadId);
   if (!rule) return;
   const data = msg.data;

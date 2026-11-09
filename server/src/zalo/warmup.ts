@@ -21,8 +21,8 @@ let inFlight = false;
 let lastAt = 0;
 let doFetch: typeof fetch = keepAliveFetch;
 
-/** Đang lắng nghe = có nhóm đang bật và không bị dừng sau khi "trả lời 1 lần". */
-export const isListening = () => rules.hot.size > 0 && !replyMode.isPaused();
+/** Đang lắng nghe = có nhóm đang bật, đang trong ca, và không bị dừng sau khi "trả lời 1 lần". */
+export const isListening = () => rules.hot.size > 0 && replyMode.isActive();
 
 export async function warmTick() {
   if (!target || inFlight || !isListening() || Date.now() - lastAt < MIN_GAP_MS) return;
@@ -58,5 +58,5 @@ export function stopWarmup() {
 
 // Vừa bấm "Tiếp tục lắng nghe": giữ ấm ngay, không chờ tới chu kỳ sau.
 bus.on("reply_mode", (m) => {
-  if (!m.paused) void warmTick();
+  if (m.working && !m.paused) void warmTick();
 });

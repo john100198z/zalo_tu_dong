@@ -31,6 +31,7 @@ type Tab = 'groups' | 'logs' | 'settings'
 function Dashboard({ onLoggedOut }: { onLoggedOut: () => void }) {
   const { status, hasSavedSession, setHasSavedSession, logs, online, replyMode, setReplyMode } = useLive(onLoggedOut)
   const [resuming, setResuming] = useState(false)
+  const [switching, setSwitching] = useState(false)
 
   async function resume() {
     setResuming(true)
@@ -40,6 +41,18 @@ function Dashboard({ onLoggedOut }: { onLoggedOut: () => void }) {
       alert((err as Error).message)
     } finally {
       setResuming(false)
+    }
+  }
+
+  async function toggleWorking() {
+    if (!replyMode) return
+    setSwitching(true)
+    try {
+      setReplyMode(await api.saveReplyMode({ working: !replyMode.working }))
+    } catch (err) {
+      alert((err as Error).message)
+    } finally {
+      setSwitching(false)
     }
   }
   const [tab, setTab] = useState<Tab>('groups')
@@ -128,7 +141,23 @@ function Dashboard({ onLoggedOut }: { onLoggedOut: () => void }) {
       </header>
 
       <main className="mx-auto max-w-4xl px-3 py-4 sm:px-4 sm:py-6">
-        {replyMode?.paused && (
+        {replyMode && (
+          <button
+            onClick={toggleWorking}
+            disabled={switching}
+            className={`mb-4 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3.5 text-sm font-semibold text-white shadow-sm transition active:scale-[0.99] disabled:opacity-60 sm:text-base ${
+              replyMode.working ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'
+            }`}
+          >
+            {switching ? (
+              <Spinner className="size-5" />
+            ) : (
+              <span className={`size-2.5 rounded-full bg-white ${replyMode.working ? 'animate-pulse' : ''}`} />
+            )}
+            {replyMode.working ? 'ĐANG LÀM VIỆC (ấn nếu dừng hoạt động)' : 'ĐANG DỪNG (ấn nếu muốn làm việc)'}
+          </button>
+        )}
+        {replyMode?.working && replyMode.paused && (
           <div className="mb-4 flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 sm:flex-row sm:items-center">
             <div className="min-w-0 flex-1">
               <p className="font-semibold">⏸ Đang DỪNG lắng nghe tất cả nhóm</p>

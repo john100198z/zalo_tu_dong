@@ -225,13 +225,13 @@ export function registerApiRoutes(app: FastifyInstance) {
       getMessages(req.params.id, req.query.before ? Number(req.query.before) : undefined),
     );
 
-    api.put<{ Body: { oneShot?: boolean; paused?: boolean } }>(
+    api.put<{ Body: { working?: boolean; oneShot?: boolean; paused?: boolean } }>(
       "/api/reply-mode",
       {
         schema: {
           body: {
             type: "object",
-            properties: { oneShot: { type: "boolean" }, paused: { type: "boolean" } },
+            properties: { working: { type: "boolean" }, oneShot: { type: "boolean" }, paused: { type: "boolean" } },
             additionalProperties: false,
           },
         },
