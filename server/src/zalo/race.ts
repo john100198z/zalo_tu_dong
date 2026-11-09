@@ -52,14 +52,19 @@ function toSeen(m: GroupMessage): Seen {
 }
 
 /** Thứ tự server: so msgId (số tăng dần do server cấp), trùng thì so ts. */
+/**
+ * Thứ tự server: so ts (mili-giây do server Zalo đóng dấu), trùng thì so msgId.
+ * Không xếp theo msgId trước: dữ liệu thật cho thấy tin kích hoạt có thể mang msgId LỚN hơn
+ * các tin trả lời đến sau nó, khiến người trả lời trước mình bị đếm sót.
+ */
 function compare(a: Seen, b: Seen): number {
+  if (a.ts !== b.ts) return a.ts - b.ts;
   try {
     const d = BigInt(a.msgId) - BigInt(b.msgId);
-    if (d !== 0n) return d < 0n ? -1 : 1;
+    return d === 0n ? 0 : d < 0n ? -1 : 1;
   } catch {
-    /* msgId không phải số */
+    return 0;
   }
-  return a.ts - b.ts;
 }
 
 /** Ghi nhận mọi tin nhóm (kể cả tin của chính mình) để đối chiếu sau. Rất nhẹ, chạy sau đường trả lời. */

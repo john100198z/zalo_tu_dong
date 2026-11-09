@@ -23,12 +23,29 @@ function msg(group: string, msgId: number, uid: string, name: string, offsetMs: 
   } as unknown as Message;
 }
 
-test("đếm đúng số người nhắn chen giữa, theo thứ tự server (msgId)", async () => {
+test("tin kích hoạt có msgId lớn hơn các tin trả lời: vẫn đếm đúng theo giờ server", async () => {
+  // Lấy từ dữ liệu thật nhóm "SPA CAM CAM": bot báo #1 nhưng thực tế #6.
+  const trigger = msg("g9", 8468488846358, "boss", "Vân Lê", 0, "1");
+  observe(trigger);
+  observe(msg("g9", 8468488844995, "a", "Ly Nguyễn", 38));
+  observe(msg("g9", 8468488845001, "b", "Na", 80));
+  observe(msg("g9", 8468488845002, "c", "Diễm", 85));
+  observe(msg("g9", 8468488845003, "d", "Kim Thanh", 89));
+  observe(msg("g9", 8468488845004, "e", "Vyl", 93));
+  observe(msg("g9", 8468488845005, SELF, "Tôi", 95));
+  observe(msg("g9", 8468488845007, "f", "Tít", 105));
+  const r = await verifyRace(api, "g9", trigger as GroupMessage, "8468488845005", "em");
+  assert.equal(r?.rank, 6);
+  assert.deepEqual(r?.ahead.map((a) => a.name), ["Ly Nguyễn", "Na", "Diễm", "Kim Thanh", "Vyl"]);
+  assert.equal(r?.ourDeltaMs, 95);
+});
+
+test("đếm đúng số người nhắn chen giữa, kể cả tin đến tay mình trễ", async () => {
   const trigger = msg("g1", 1000, "boss", "Trưởng nhóm", 0, "cần 1 bạn");
   observe(trigger);
   observe(msg("g1", 1001, "b", "B", 300));
   observe(msg("g1", 1002, "boss", "Trưởng nhóm", 350, "nhanh lên")); // người được nghe nhắn tiếp: không tính
-  // Tin của C được server xếp TRƯỚC mình (msgId nhỏ hơn) nhưng tới tay mình SAU tin của mình.
+  // Tin của C được server đóng dấu TRƯỚC mình nhưng tới tay mình SAU tin của mình.
   setTimeout(() => {
     observe(msg("g1", 1004, SELF, "Tôi", 420));
     setTimeout(() => observe(msg("g1", 1003, "c", "C", 410)), 200);
