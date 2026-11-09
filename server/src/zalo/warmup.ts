@@ -20,6 +20,8 @@ let target = "";
 let inFlight = false;
 let lastAt = 0;
 let doFetch: typeof fetch = keepAliveFetch;
+// Thời gian HEAD nhanh nhất từng thấy ~ kết nối đang ấm; chậm hơn nhiều nghĩa là vừa bắt tay lại.
+let bestMs = Infinity;
 
 /** Đang lắng nghe = có nhóm đang bật, đang trong ca, và không bị dừng sau khi "trả lời 1 lần". */
 export const isListening = () => rules.hot.size > 0 && replyMode.isActive();
@@ -28,9 +30,16 @@ export async function warmTick() {
   if (!target || inFlight || !isListening() || Date.now() - lastAt < MIN_GAP_MS) return;
   inFlight = true;
   lastAt = Date.now();
+  const t0 = performance.now();
   try {
     const res = await doFetch(target, { method: "HEAD", signal: AbortSignal.timeout(TIMEOUT_MS) });
     await res.arrayBuffer().catch(() => {});
+    const ms = Math.round(performance.now() - t0);
+    const first = bestMs === Infinity;
+    bestMs = Math.min(bestMs, ms);
+    const warm = !first && ms <= Math.max(bestMs * 1.6, bestMs + 25);
+    const host = new URL(target).host;
+    console.log(`[warm] HEAD ${host} ${ms}ms ${first ? "(mốc đầu)" : warm ? "ấm ✓" : "nguội — vừa bắt tay lại"}`);
   } catch {
     // Lỗi mạng thoáng qua: lần sau thử lại, không ảnh hưởng gì tới việc trả lời.
   } finally {
@@ -54,6 +63,7 @@ export function stopWarmup() {
   timer = null;
   target = "";
   lastAt = 0;
+  bestMs = Infinity;
 }
 
 // Vừa bấm "Tiếp tục lắng nghe": giữ ấm ngay, không chờ tới chu kỳ sau.

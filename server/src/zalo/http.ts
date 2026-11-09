@@ -1,5 +1,6 @@
 import http from "node:http";
 import https from "node:https";
+import diagnostics from "node:diagnostics_channel";
 import { Agent, ProxyAgent, type Dispatcher } from "undici";
 import { HttpsProxyAgent } from "https-proxy-agent";
 import { SocksProxyAgent } from "socks-proxy-agent";
@@ -52,7 +53,9 @@ function injectBrowserHeaders(init?: RequestInit): RequestInit | undefined {
 
 // ---------- SOCKS5: dùng https.request + SocksProxyAgent (ổn định hơn SocksClient) ----------
 function buildSocksFetch(): typeof fetch {
-  const agent = new SocksProxyAgent(PROXY);
+  // keepAlive để giữ ấm: không bật thì mỗi request mở tunnel SOCKS + bắt tay TLS mới rồi đóng,
+  // warmup HEAD vô nghĩa và mỗi lần gửi tin đều tốn ~90ms bắt tay lại.
+  const agent = new SocksProxyAgent(PROXY, { keepAlive: true, keepAliveMsecs: 15_000, maxSockets: 16 });
 
   return ((input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     return new Promise((resolve, reject) => {
@@ -78,6 +81,7 @@ function buildSocksFetch(): typeof fetch {
           headers,
           agent: agent as any,
           ciphers: CHROME_CIPHERS,
+          signal: init?.signal ?? undefined,
         },
         (res) => {
           const chunks: Buffer[] = [];
@@ -132,6 +136,21 @@ function buildDispatcher(): Dispatcher {
 }
 
 const dispatcher = buildDispatcher();
+
+// Log mỗi khi undici mở MỘT kết nối TCP/TLS mới tới host Zalo. Giữ ấm hiệu quả = sau vài kết nối
+// đầu (lúc đăng nhập) sẽ hầu như không còn thấy dòng này với host gửi tin nhóm (tt-group...).
+// Còn thấy lặp lại đều mỗi ~10-30s nghĩa là kết nối bị đóng và không giữ ấm được.
+if (!isSocks) {
+  try {
+    diagnostics.subscribe("undici:client:connected", (msg) => {
+      const p = (msg as { connectParams?: { hostname?: string; host?: string; version?: string } }).connectParams;
+      const host = p?.hostname || p?.host || "";
+      if (/zalo\.me/.test(host)) console.log(`[http] Mở kết nối mới → ${host} (${p?.version ?? "h1"})`);
+    });
+  } catch {
+    // diagnostics_channel không khả dụng cũng không sao.
+  }
+}
 
 // ---------- WebSocket agent (cho thư viện ws bên trong zca-js) ----------
 function buildWsAgent() {
