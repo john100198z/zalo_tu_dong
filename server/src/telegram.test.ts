@@ -195,3 +195,35 @@ test("nút ca làm việc: ĐANG LÀM VIỆC / ĐANG DỪNG, bấm để đổi"
   assert.equal(body.reply_markup.inline_keyboard[0][0].text, "🟢 ĐANG LÀM VIỆC (ấn nếu dừng hoạt động)");
   assert.equal(body.reply_markup.inline_keyboard[0][0].callback_data, "work_off");
 });
+
+test("lỗi mạng: lỗi lúc nối thì thử lại; sendMessage đứt giữa chừng thì KHÔNG gửi lại (tránh trùng tin)", async () => {
+  const realFetch = globalThis.fetch;
+  const netErr = (code: string) => Object.assign(new TypeError("fetch failed"), { cause: { code } });
+  let attempts = 0;
+  const failOnce = (code: string) => (async () => {
+    attempts++;
+    if (attempts === 1) throw netErr(code);
+    return new Response(JSON.stringify({ ok: true, result: { username: "bot" } }));
+  }) as unknown as typeof fetch;
+  try {
+    attempts = 0;
+    globalThis.fetch = failOnce("ETIMEDOUT");
+    assert.deepEqual(await telegram.verifyToken("1:a"), { username: "bot" });
+    assert.equal(attempts, 2, "ETIMEDOUT lúc nối thì thử lại");
+
+    telegram.save({ token: "1:a", chatId: "-100" });
+    attempts = 0;
+    globalThis.fetch = failOnce("ECONNRESET");
+    await assert.rejects(telegram.sendTest(), /fetch failed/);
+    assert.equal(attempts, 1, "sendMessage đứt giữa chừng thì không gửi lại");
+
+    attempts = 0;
+    globalThis.fetch = failOnce("ETIMEDOUT");
+    await telegram.sendTest();
+    assert.equal(attempts, 2, "sendMessage lỗi lúc nối (chưa tới Telegram) thì thử lại");
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+  const { describeError } = await import("./telegram.js");
+  assert.equal(describeError(netErr("ETIMEDOUT")), "fetch failed (ETIMEDOUT)");
+});

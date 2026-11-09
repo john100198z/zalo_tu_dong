@@ -1,3 +1,4 @@
+import { Agent } from "undici";
 import { settings } from "./db.js";
 import { bus, type ReplyLog, type ZaloStatus } from "./events.js";
 import { replyMode } from "./replyMode.js";
@@ -33,19 +34,58 @@ const clip = (s: string, n = 300) => (s.length > n ? `${s.slice(0, n)}…` : s);
 const time = (ts: number) =>
   new Date(ts).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "Asia/Ho_Chi_Minh" });
 
+/**
+ * Kết nối riêng cho Telegram. DNS trả cả IPv6 nhưng VPS không có IPv6, và Node mặc định chỉ chờ
+ * 250ms cho mỗi lần nối IPv4 trước khi chuyển sang IPv6: đường tới Telegram mất ~250-330ms nên
+ * ~1/3 lần nối báo ETIMEDOUT ("fetch failed"). Ép IPv4, cho chờ đủ lâu, và giữ kết nối để dùng lại.
+ */
+const tgAgent = new Agent({
+  connect: { family: 4, timeout: 10_000 },
+  keepAliveTimeout: 20_000,
+  keepAliveMaxTimeout: 60_000,
+});
+
+/** Lỗi lúc đang nối: request chắc chắn chưa tới Telegram, gửi lại không bị trùng. */
+const CONNECT_ERRORS = new Set(["ETIMEDOUT", "ECONNREFUSED", "ENETUNREACH", "EHOSTUNREACH", "EAI_AGAIN", "UND_ERR_CONNECT_TIMEOUT"]);
+/** Lỗi đứt giữa chừng: Telegram có thể đã nhận, chỉ gửi lại với lệnh không tạo tin mới. */
+const SOCKET_ERRORS = new Set(["ECONNRESET", "EPIPE", "UND_ERR_SOCKET", "UND_ERR_CLOSED"]);
+
+const causeCode = (err: unknown) => {
+  const c = (err as { cause?: { code?: string; name?: string } })?.cause;
+  return c?.code ?? c?.name;
+};
+
+/** "fetch failed (ETIMEDOUT)": kèm mã lỗi thật để log có ích. */
+export const describeError = (err: unknown) => {
+  const code = causeCode(err);
+  return `${(err as Error)?.message ?? String(err)}${code ? ` (${code})` : ""}`;
+};
+
 async function callTelegram<T>(
   token: string,
   method: string,
   body?: unknown,
   opts: { signal?: AbortSignal; timeoutMs?: number } = {},
 ): Promise<T> {
-  const timeout = AbortSignal.timeout(opts.timeoutMs ?? 15_000);
-  const res = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body ?? {}),
-    signal: opts.signal ? AbortSignal.any([opts.signal, timeout]) : timeout,
-  });
+  const send = () => {
+    const timeout = AbortSignal.timeout(opts.timeoutMs ?? 15_000);
+    return fetch(`https://api.telegram.org/bot${token}/${method}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body ?? {}),
+      signal: opts.signal ? AbortSignal.any([opts.signal, timeout]) : timeout,
+      dispatcher: tgAgent,
+    } as RequestInit);
+  };
+  let res: Response;
+  try {
+    res = await send();
+  } catch (err) {
+    const code = causeCode(err) ?? "";
+    const retryable = CONNECT_ERRORS.has(code) || (method !== "sendMessage" && SOCKET_ERRORS.has(code));
+    if (!retryable || opts.signal?.aborted) throw err;
+    res = await send();
+  }
   const data = (await res.json().catch(() => ({}))) as { ok?: boolean; result?: T; description?: string; parameters?: { retry_after?: number } };
   if (!data.ok) {
     const err = new Error(data.description || `Telegram lỗi ${res.status}`) as Error & { retryAfter?: number };
@@ -226,11 +266,11 @@ class TelegramNotifier {
         );
         for (const u of updates) {
           offset = u.update_id + 1;
-          await this.handleUpdate(token, u).catch((err) => console.warn("[telegram] Xử lý cập nhật lỗi:", (err as Error).message));
+          await this.handleUpdate(token, u).catch((err) => console.warn("[telegram] Xử lý cập nhật lỗi:", describeError(err)));
         }
       } catch (err) {
         if (signal.aborted) return;
-        console.warn("[telegram] Nhận cập nhật lỗi:", (err as Error).message);
+        console.warn("[telegram] Nhận cập nhật lỗi:", describeError(err));
         await new Promise((r) => setTimeout(r, 5_000));
       }
     }
@@ -340,7 +380,7 @@ class TelegramNotifier {
       }
     } catch (err) {
       const m = (err as Error).message;
-      if (!EDIT_IGNORABLE.test(m)) console.warn("[telegram] Gỡ nút tin cũ lỗi:", m);
+      if (!EDIT_IGNORABLE.test(m)) console.warn("[telegram] Gỡ nút tin cũ lỗi:", describeError(err));
     }
   }
 
@@ -359,7 +399,7 @@ class TelegramNotifier {
     } catch (err) {
       const m = (err as Error).message;
       if (m.includes("not modified")) return;
-      if (!EDIT_IGNORABLE.test(m)) return console.warn("[telegram] Cập nhật bảng điều khiển lỗi:", m);
+      if (!EDIT_IGNORABLE.test(m)) return console.warn("[telegram] Cập nhật bảng điều khiển lỗi:", describeError(err));
       // Tin đã bị xoá hoặc quá cũ: bỏ theo dõi.
       if (this.panel === p) this.panel = null;
     }
@@ -489,7 +529,7 @@ class TelegramNotifier {
           }
         } catch (err) {
           const retryAfter = (err as { retryAfter?: number }).retryAfter;
-          console.warn("[telegram] Gửi thông báo lỗi:", (err as Error).message);
+          console.warn("[telegram] Gửi thông báo lỗi:", describeError(err));
           if (retryAfter) {
             this.queue.unshift(...batch);
             await new Promise((r) => setTimeout(r, retryAfter * 1000));
