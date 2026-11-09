@@ -2,6 +2,7 @@ import { Zalo, ZaloApiError, CloseReason, LoginQRCallbackEventType, type API, ty
 import { settings } from "../db.js";
 import { bus, type ZaloStatus } from "../events.js";
 import { createAutoReplyHandler } from "./autoReply.js";
+import { startWarmup, stopWarmup } from "./warmup.js";
 import { CHROME_UA, keepAliveFetch, preloadChatPage, wsAgent } from "./http.js";
 import { knownSenders } from "./race.js";
 
@@ -211,6 +212,7 @@ class ZaloService {
     listener.start({ retryOnClose: true });
     this.startHealthCheck(api);
     this.startKeepAlive(api);
+    startWarmup(api);
   }
 
   private scheduleReconnect(reason: string, delayMs?: number) {
@@ -280,6 +282,7 @@ class ZaloService {
     this.healthTimer = null;
     if (this.keepAliveTimer) clearInterval(this.keepAliveTimer);
     this.keepAliveTimer = null;
+    stopWarmup();
     if (api) {
       api.listener.removeAllListeners();
       try {
