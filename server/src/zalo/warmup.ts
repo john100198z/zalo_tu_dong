@@ -1,72 +1,121 @@
-import type { API } from "zca-js";
-import { keepAliveFetch } from "./http.js";
+import { ThreadType, type API, type GroupMessage } from "zca-js";
+import { connOpenCount } from "./http.js";
 import { replyMode } from "../replyMode.js";
 import { rules } from "../rules.js";
+import { warmGroup } from "../warm.js";
 import { bus } from "../events.js";
 
 /**
- * Giữ ấm kết nối tới host gửi tin nhóm: Zalo đóng kết nối rảnh sau ~30s, lần gửi sau phải
- * bắt tay TLS lại (+~90ms). Gửi HEAD / không kèm cookie/tài khoản, đi chung dispatcher với
- * sendMessage để giữ đúng đường ống đó. Chỉ chạy khi đang thật sự lắng nghe.
+ * Giữ ấm kết nối tới host gửi tin nhóm (zpwServiceMap.group[0]): Zalo đóng kết nối rảnh, lần gửi sau
+ * phải bắt tay TLS lại (+~60ms qua proxy). "Ping" bằng request hợp lệ trả 200 + keep-alive để giữ
+ * kết nối (HEAD rỗng bị trả lỗi + Connection: close, không giữ nổi). Xoay vòng 2 loại request cho
+ * giống thao tác người thật, khoảng cách random, đi chung dispatcher với sendMessage.
  */
 
-const INTERVAL_MS = 10_000;
-const TIMEOUT_MS = 5_000;
+// Khoảng cách giữa các lần ping: random trong [MIN, MAX] cho đỡ lộ pattern cố định.
+const WARM_MIN_MS = Math.max(2_000, Number(process.env.ZALO_WARM_MIN_MS) || 10_000);
+const WARM_MAX_MS = Math.max(WARM_MIN_MS, Number(process.env.ZALO_WARM_MAX_MS) || 14_000);
+const nextDelay = () => WARM_MIN_MS + Math.floor(Math.random() * (WARM_MAX_MS - WARM_MIN_MS + 1));
 // Nhiều sự kiện dồn cùng lúc (bấm tiếp tục, đổi trạng thái) chỉ bắn 1 lần.
 const MIN_GAP_MS = 2_000;
 
 let timer: NodeJS.Timeout | null = null;
-let target = "";
+let currentApi: API | null = null;
+let host = "";
 let inFlight = false;
 let lastAt = 0;
-let doFetch: typeof fetch = keepAliveFetch;
-// Thời gian HEAD nhanh nhất từng thấy ~ kết nối đang ấm; chậm hơn nhiều nghĩa là vừa bắt tay lại.
-let bestMs = Infinity;
+let rot = 0;
+let lastMethod = "ping";
+// Tin nhóm gần nhất bot thấy, dùng cho lượt "đánh dấu đã xem".
+let lastGroupMsg: Parameters<API["sendSeenEvent"]>[0] | null = null;
+let ping: () => Promise<unknown> = defaultPing;
 
-/** Đang lắng nghe = có nhóm đang bật, đang trong ca, và không bị dừng sau khi "trả lời 1 lần". */
+/**
+ * Đang lắng nghe = có nhóm đang bật, đang trong ca, và KHÔNG bị dừng sau khi "trả lời 1 lần".
+ * Dính cờ oneShot rồi dừng (paused) thì không trả lời ai nữa nên không cần giữ ấm.
+ */
 export const isListening = () => rules.hot.size > 0 && replyMode.isActive();
 
+/** Ghi nhớ tin nhóm gần nhất (không phải tin của mình) để dùng cho lượt ping "đã xem". */
+export function rememberGroupMessage(msg: GroupMessage) {
+  lastGroupMsg = msg.data as unknown as Parameters<API["sendSeenEvent"]>[0];
+}
+
+/** Nhóm dùng để xem thông tin: nhóm người dùng đã chọn, nếu không có thì lấy 1 nhóm đang nghe. */
+function pingGroupId(): string | undefined {
+  return warmGroup.get()?.groupId || rules.hot.keys().next().value;
+}
+
+function defaultPing(): Promise<unknown> {
+  if (!currentApi) return Promise.resolve();
+  const gid = pingGroupId();
+  // Xoay vòng cho giống thao tác người thật: xem thông tin nhóm → đánh dấu đã xem → "đang soạn tin".
+  const step = rot++ % 3;
+  if (step === 1 && lastGroupMsg) {
+    lastMethod = "seen";
+    return currentApi.sendSeenEvent(lastGroupMsg, ThreadType.Group);
+  }
+  if (step === 2 && gid) {
+    lastMethod = "typing";
+    return currentApi.sendTypingEvent(gid, ThreadType.Group);
+  }
+  if (!gid) return Promise.resolve();
+  lastMethod = "groupInfo";
+  return currentApi.getGroupInfo(gid);
+}
+
 export async function warmTick() {
-  if (!target || inFlight || !isListening() || Date.now() - lastAt < MIN_GAP_MS) return;
+  if (!currentApi || inFlight || !isListening() || Date.now() - lastAt < MIN_GAP_MS) return;
   inFlight = true;
   lastAt = Date.now();
+  const before = connOpenCount(host);
   const t0 = performance.now();
   try {
-    const res = await doFetch(target, { method: "HEAD", signal: AbortSignal.timeout(TIMEOUT_MS) });
-    await res.arrayBuffer().catch(() => {});
+    await ping();
     const ms = Math.round(performance.now() - t0);
-    const first = bestMs === Infinity;
-    bestMs = Math.min(bestMs, ms);
-    const warm = !first && ms <= Math.max(bestMs * 1.6, bestMs + 25);
-    const host = new URL(target).host;
-    console.log(`[warm] HEAD ${host} ${ms}ms ${first ? "(mốc đầu)" : warm ? "ấm ✓" : "nguội — vừa bắt tay lại"}`);
+    // Tín hiệu thật: nếu lần này undici phải mở kết nối mới tới host thì tức là CHƯA giữ ấm được.
+    const opened = connOpenCount(host) - before;
+    console.log(`[warm] ${host} ${lastMethod} ${ms}ms ${opened > 0 ? "✗ phải mở kết nối mới (chưa giữ ấm được)" : "✓ tái dùng kết nối"}`);
   } catch {
-    // Lỗi mạng thoáng qua: lần sau thử lại, không ảnh hưởng gì tới việc trả lời.
+    // Ping lỗi (nhóm không còn / tin quá cũ / rate limit): không ảnh hưởng việc trả lời.
   } finally {
     inFlight = false;
   }
 }
 
-export function startWarmup(api: API, fetchImpl: typeof fetch = keepAliveFetch) {
+function schedule() {
+  timer = setTimeout(() => {
+    void warmTick().finally(() => {
+      if (currentApi) schedule();
+    });
+  }, nextDelay());
+  timer.unref();
+}
+
+export function startWarmup(api: API, pingImpl?: () => Promise<unknown>) {
   stopWarmup();
   const base = api.zpwServiceMap?.group?.[0];
-  if (!base) return;
-  target = new URL("/", base).toString();
-  doFetch = fetchImpl;
-  timer = setInterval(warmTick, INTERVAL_MS);
-  timer.unref();
+  if (!base) {
+    console.warn("[warm] Không có host nhóm (zpwServiceMap.group) để giữ ấm");
+    return;
+  }
+  currentApi = api;
+  host = new URL(base).hostname;
+  ping = pingImpl ?? defaultPing;
+  schedule();
   void warmTick();
 }
 
 export function stopWarmup() {
-  if (timer) clearInterval(timer);
+  if (timer) clearTimeout(timer);
   timer = null;
-  target = "";
+  currentApi = null;
+  host = "";
   lastAt = 0;
-  bestMs = Infinity;
+  ping = defaultPing;
 }
 
-// Vừa bấm "Tiếp tục lắng nghe": giữ ấm ngay, không chờ tới chu kỳ sau.
+// Vừa bấm "Tiếp tục lắng nghe" / vào ca: giữ ấm ngay, không chờ tới chu kỳ sau.
 bus.on("reply_mode", (m) => {
   if (m.working && !m.paused) void warmTick();
 });

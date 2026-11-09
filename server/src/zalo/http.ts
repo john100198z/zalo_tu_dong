@@ -137,15 +137,25 @@ function buildDispatcher(): Dispatcher {
 
 const dispatcher = buildDispatcher();
 
-// Log mỗi khi undici mở MỘT kết nối TCP/TLS mới tới host Zalo. Giữ ấm hiệu quả = sau vài kết nối
-// đầu (lúc đăng nhập) sẽ hầu như không còn thấy dòng này với host gửi tin nhóm (tt-group...).
-// Còn thấy lặp lại đều mỗi ~10-30s nghĩa là kết nối bị đóng và không giữ ấm được.
+// Đếm số lần undici mở MỘT kết nối TCP/TLS mới tới từng host Zalo. warmup đọc số này trước/sau mỗi
+// lần ping để biết kết nối có được tái dùng (giữ ấm được) hay lại phải mở mới.
+const connOpened = new Map<string, number>();
+export const connOpenCount = (host: string) => connOpened.get(host) ?? 0;
+
 if (!isSocks) {
   try {
     diagnostics.subscribe("undici:client:connected", (msg) => {
-      const p = (msg as { connectParams?: { hostname?: string; host?: string; version?: string } }).connectParams;
-      const host = p?.hostname || p?.host || "";
-      if (/zalo\.me/.test(host)) console.log(`[http] Mở kết nối mới → ${host} (${p?.version ?? "h1"})`);
+      // Chạy đồng bộ trong lúc undici mở kết nối (rep cũng dùng chung) — tuyệt đối không để ném lỗi.
+      try {
+        const p = (msg as { connectParams?: { hostname?: string; host?: string; version?: string } }).connectParams;
+        const host = p?.hostname || p?.host || "";
+        if (/zalo\.me/.test(host)) {
+          connOpened.set(host, (connOpened.get(host) ?? 0) + 1);
+          console.log(`[http] Mở kết nối mới → ${host} (${p?.version ?? "h1"})`);
+        }
+      } catch {
+        // Bỏ qua: log giữ ấm không được phép ảnh hưởng tới kết nối.
+      }
     });
   } catch {
     // diagnostics_channel không khả dụng cũng không sao.

@@ -3,6 +3,7 @@ import { zalo } from "../zalo/service.js";
 import { rules, type ListenUser } from "../rules.js";
 import { recentLogs } from "../events.js";
 import { replyMode } from "../replyMode.js";
+import { warmGroup } from "../warm.js";
 import { getMessages, listThreads, setThreadName } from "../zalo/archive.js";
 import { DEFAULT_REPLY, MAX_LISTEN_USERS } from "../config.js";
 import { requireAuth } from "./auth.js";
@@ -197,6 +198,25 @@ export function registerApiRoutes(app: FastifyInstance) {
       rules.remove(req.params.id);
       return { ok: true };
     });
+
+    api.get("/api/warm", async () => warmGroup.get());
+
+    api.put<{ Body: { groupId: string; groupName: string } }>(
+      "/api/warm",
+      {
+        schema: {
+          body: {
+            type: "object",
+            required: ["groupId", "groupName"],
+            properties: { groupId: { type: "string", minLength: 1, maxLength: 40 }, groupName: { type: "string", maxLength: 200 } },
+            additionalProperties: false,
+          },
+        },
+      },
+      async (req) => warmGroup.set({ groupId: req.body.groupId, groupName: req.body.groupName }),
+    );
+
+    api.delete("/api/warm", async () => warmGroup.set(null));
 
     api.get("/api/logs", async () => recentLogs());
 

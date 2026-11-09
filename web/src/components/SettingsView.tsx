@@ -1,6 +1,6 @@
-import { useEffect, useState, type ReactNode } from 'react'
-import { api, type ReplyMode, type TelegramChat, type TelegramSettings } from '../api'
-import { Badge, Button, Card, Spinner, Toggle } from './ui'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { api, type Group, type ReplyMode, type TelegramChat, type TelegramSettings, type WarmGroup } from '../api'
+import { Avatar, Badge, Button, Card, Spinner, Toggle } from './ui'
 
 export function SettingsView({ replyMode, onReplyMode }: { replyMode: ReplyMode | null; onReplyMode: (m: ReplyMode) => void }) {
   const [tg, setTg] = useState<TelegramSettings | null>(null)
@@ -10,12 +10,61 @@ export function SettingsView({ replyMode, onReplyMode }: { replyMode: ReplyMode 
   const [busy, setBusy] = useState<string | null>(null)
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null)
 
+  const [warm, setWarm] = useState<WarmGroup | 'loading'>('loading')
+  const [groups, setGroups] = useState<Group[] | null>(null)
+  const [gQuery, setGQuery] = useState('')
+  const [gLoading, setGLoading] = useState(false)
+  const [gError, setGError] = useState('')
+  const [warmSaving, setWarmSaving] = useState(false)
+
   useEffect(() => {
     api.telegram().then((s) => {
       setTg(s)
       setChatId(s.chatId)
     })
+    api.warm().then(setWarm).catch(() => setWarm(null))
   }, [])
+
+  async function loadGroups() {
+    if (groups || gLoading) return
+    setGLoading(true)
+    setGError('')
+    try {
+      setGroups(await api.groups())
+    } catch (err) {
+      setGError((err as Error).message)
+    } finally {
+      setGLoading(false)
+    }
+  }
+
+  async function pickWarm(g: Group) {
+    setWarmSaving(true)
+    setGError('')
+    try {
+      setWarm(await api.saveWarm({ groupId: g.id, groupName: g.name }))
+      setGQuery('')
+    } catch (err) {
+      setGError((err as Error).message)
+    } finally {
+      setWarmSaving(false)
+    }
+  }
+
+  async function autoWarm() {
+    setWarmSaving(true)
+    try {
+      setWarm(await api.clearWarm())
+    } finally {
+      setWarmSaving(false)
+    }
+  }
+
+  const gFiltered = useMemo(() => {
+    if (!groups) return []
+    const q = gQuery.trim().toLowerCase()
+    return (q ? groups.filter((x) => x.name.toLowerCase().includes(q) || x.id.includes(q)) : groups).slice(0, 50)
+  }, [groups, gQuery])
 
   async function act(key: string, fn: () => Promise<unknown>, success?: string) {
     setBusy(key)
@@ -64,6 +113,72 @@ export function SettingsView({ replyMode, onReplyMode }: { replyMode: ReplyMode 
             onChange={(oneShot) => act('mode', async () => onReplyMode(await api.saveReplyMode({ oneShot })))}
             label="Trả lời 1 lần rồi dừng"
           />
+        </div>
+      </Card>
+
+      <Card className="p-4 sm:p-5">
+        <div className="flex items-start gap-3 sm:gap-4">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-rose-500 text-xl text-white">🔥</div>
+          <div className="flex-1">
+            <h2 className="font-semibold">Nhóm giữ ấm kết nối</h2>
+            <p className="mt-0.5 text-sm text-slate-500">
+              Bot định kỳ gọi tới một nhóm (xem thông tin · đánh dấu đã xem · "đang soạn tin", xoay vòng) để giữ kết nối tới
+              máy chủ Zalo luôn "ấm", nhờ đó lúc cần trả lời không phải mở lại kết nối (nhanh hơn ~60ms). Nên chọn một{' '}
+              <b>nhóm nhỏ, ít người</b> mà bạn đang là thành viên.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center gap-2 rounded-lg bg-slate-50 p-3 text-sm">
+          <span>Đang dùng:</span>
+          {warm === 'loading' ? (
+            <Spinner />
+          ) : warm ? (
+            <Badge tone="green">{warm.groupName}</Badge>
+          ) : (
+            <span className="text-slate-500">Tự động (một nhóm đang nghe)</span>
+          )}
+          {warm && warm !== 'loading' && (
+            <Button variant="secondary" className="ml-auto" loading={warmSaving} onClick={autoWarm}>
+              Dùng tự động
+            </Button>
+          )}
+        </div>
+
+        <div className="mt-3">
+          <input
+            value={gQuery}
+            onFocus={loadGroups}
+            onChange={(e) => setGQuery(e.target.value)}
+            placeholder="Bấm vào đây rồi gõ tên nhóm để tìm..."
+            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-100"
+          />
+          {gError && <p className="mt-1 text-xs text-red-600">{gError}</p>}
+          {gLoading && (
+            <div className="flex justify-center p-4 text-slate-400">
+              <Spinner />
+            </div>
+          )}
+          {groups && (
+            <div className="mt-2 max-h-64 overflow-y-auto rounded-lg border border-slate-100">
+              {gFiltered.map((g) => (
+                <button
+                  key={g.id}
+                  disabled={warmSaving}
+                  onClick={() => pickWarm(g)}
+                  className="flex w-full items-center gap-3 border-b border-slate-100 px-3 py-2 text-left last:border-0 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  <Avatar src={g.avatar} name={g.name} size="size-8" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm">{g.name}</span>
+                    <span className="block text-xs text-slate-400">{g.totalMember} thành viên</span>
+                  </span>
+                  {warm && warm !== 'loading' && warm.groupId === g.id && <Badge tone="green">Đang chọn</Badge>}
+                </button>
+              ))}
+              {gFiltered.length === 0 && <p className="p-3 text-center text-sm text-slate-400">Không tìm thấy nhóm</p>}
+            </div>
+          )}
         </div>
       </Card>
 

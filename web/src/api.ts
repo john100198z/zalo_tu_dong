@@ -101,6 +101,8 @@ export type TelegramSettings = {
 
 export type TelegramChat = { id: string; title: string; type: string }
 
+export type WarmGroup = { groupId: string; groupName: string } | null
+
 export type BulkAction = 'listen' | 'enable' | 'disable' | 'reply' | 'remove'
 
 export class ApiError extends Error {
@@ -149,6 +151,10 @@ export const api = {
     request<ChatMessage[]>('GET', `/api/chats/${encodeURIComponent(threadId)}/messages${before ? `?before=${before}` : ''}`),
   saveReplyMode: (patch: { working?: boolean; oneShot?: boolean; paused?: boolean }) =>
     request<ReplyMode>('PUT', '/api/reply-mode', patch),
+
+  warm: () => request<WarmGroup>('GET', '/api/warm'),
+  saveWarm: (g: { groupId: string; groupName: string }) => request<WarmGroup>('PUT', '/api/warm', g),
+  clearWarm: () => request<WarmGroup>('DELETE', '/api/warm'),
 
   telegram: () => request<TelegramSettings>('GET', '/api/telegram'),
   saveTelegram: (patch: Partial<Omit<TelegramSettings, 'hasToken' | 'tokenPreview'>> & { token?: string }) =>
